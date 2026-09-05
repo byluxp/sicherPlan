@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import engine, Base, get_db
 import models, schemas
-from services.documentos import gerar_docx_certificado
+from routers import colaborador
+#from services.documentos import gerar_docx_certificado
 
 app = FastAPI(title="SicherPlan API")
 
@@ -28,11 +29,13 @@ def home():
 
 
 # ----------------- Teste: Geração de Certificado Word -----------------
-@app.post("/testes/gerar-certificado-word")
-def gerar_certificado_word_teste(dados: schemas.CertificadoDocumentoDados, db: Session = Depends(get_db)):
+#@app.post("/testes/gerar-certificado-word")
+#def gerar_certificado_word_teste(dados: schemas.CertificadoDocumentoDados, db: Session = Depends(get_db)):
     caminho_saida = gerar_docx_certificado(dados=dados, db=db)
     return {"mensagem": "Certificado gerado com sucesso", "caminho_arquivo": caminho_saida}
 
+# Colaborador
+app.include_router(colaborador.router)
 
 # ----------------- Setor -----------------
 @app.post("/setores", response_model=schemas.SetorResponse)
@@ -125,53 +128,6 @@ def deletar_funcao_por_id(funcao_id: int, db: Session = Depends(get_db)):
     db.delete(funcao_banco)
     db.commit()
     return {"mensagem": "Função deletada com sucesso"}
-
-
-# ----------------- Colaborador -----------------
-@app.post("/colaboradores", response_model=schemas.ColaboradorResponse)
-def criar_colaborador(colaborador: schemas.ColaboradorCreate, db: Session = Depends(get_db)):
-    novo_colaborador = models.Colaborador(**colaborador.model_dump())
-    db.add(novo_colaborador)
-    db.commit()
-    db.refresh(novo_colaborador)
-    return novo_colaborador
-
-@app.get("/colaboradores", response_model=list[schemas.ColaboradorResponse])
-def listar_colaboradores(nome: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(models.Colaborador)
-    if nome:
-        query = query.filter(models.Colaborador.nome.ilike(f"%{nome}%"))
-    return query.all()
-
-@app.get("/colaboradores/{colaborador_id}", response_model=schemas.ColaboradorResponse)
-def buscar_colaborador_por_id(colaborador_id: int, db: Session = Depends(get_db)):
-    colaborador = db.query(models.Colaborador).filter(models.Colaborador.id == colaborador_id).first()
-    if not colaborador:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador não encontrado")
-    return colaborador
-
-@app.put("/colaboradores/{colaborador_id}", response_model=schemas.ColaboradorResponse)
-def atualizar_colaborador_por_id(colaborador_id: int, dados_novos: schemas.ColaboradorCreate, db: Session = Depends(get_db)):
-    colaborador_banco = db.query(models.Colaborador).filter(models.Colaborador.id == colaborador_id).first()
-    if not colaborador_banco:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador não encontrado")
-    
-    for chave, valor in dados_novos.model_dump().items():
-        setattr(colaborador_banco, chave, valor)
-    
-    db.commit()
-    db.refresh(colaborador_banco)
-    return colaborador_banco
-
-@app.delete("/colaboradores/{colaborador_id}")
-def deletar_colaborador_por_id(colaborador_id: int, db: Session = Depends(get_db)):
-    colaborador_banco = db.query(models.Colaborador).filter(models.Colaborador.id == colaborador_id).first()
-    if not colaborador_banco:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador não encontrado")
-    
-    db.delete(colaborador_banco)
-    db.commit()
-    return {"mensagem": "Colaborador deletado com sucesso"}
 
 
 # ----------------- EPI -----------------

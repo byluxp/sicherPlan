@@ -1,7 +1,8 @@
 """
 Comandos para rodar o projeto:
 1. cd backend
-2. uvicorn main:app --reload
+2. .\venv\Scripts\Activate
+3. uvicorn main:app --reload
 """
 
 from fastapi import FastAPI

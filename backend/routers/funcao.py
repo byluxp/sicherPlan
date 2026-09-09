@@ -12,10 +12,10 @@ router = APIRouter(prefix="/funcoes", tags=["Funções"])
 def criar_funcao(funcao: schemas.FuncaoCreate, db: Session = Depends(get_db)):
     return services.criar_funcao_banco(funcao, db)
 
-# Buscar funções por nome, caso nao tenha o nome, busca todas
+# Buscar funções por nome, caso nao tenha o nome, busca todos (apenas ativas por padrão)
 @router.get("/", response_model=list[schemas.FuncaoResponse])
-def listar_funcoes(nome: Optional[str] = None, db: Session = Depends(get_db)):
-    return services.listar_funcoes_banco(db, nome)
+def listar_funcoes(nome: Optional[str] = None, db: Session = Depends(get_db), apenas_ativos: bool = True):
+    return services.listar_funcoes_banco(db, nome, apenas_ativos)
 
 # Buscar função por id
 @router.get("/{funcao_id}", response_model=schemas.FuncaoResponse)

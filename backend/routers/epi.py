@@ -12,10 +12,10 @@ router = APIRouter(prefix="/epis", tags=["EPI"])
 def criar_epi(epi: schemas.EpiCreate, db: Session = Depends(get_db)):
     return services.criar_epi_banco(epi, db)
 
-# Buscar EPIs por nome, caso nao tenha o nome, busca todos
+# Buscar EPIs por nome, caso nao tenha o nome, busca todos (apenas ativos por padrão)
 @router.get("/", response_model=list[schemas.EpiResponse])
-def listar_epis(nome: Optional[str] = None, db: Session = Depends(get_db)):
-    return services.listar_epis_banco(db, nome)
+def listar_epis(nome: Optional[str] = None, db: Session = Depends(get_db), apenas_ativos: bool = True):
+    return services.listar_epis_banco(db, nome, apenas_ativos)
 
 # Buscar EPI por id
 @router.get("/{epi_id}", response_model=schemas.EpiResponse)

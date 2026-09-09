@@ -13,10 +13,10 @@ def criar_colaborador(colaborador: schemas.ColaboradorCreate, db: Session = Depe
     return services.criar_colaborador_banco(colaborador, db) 
 
 
-# Buscar colaboradores por nome, caso nao tenha o nome, busca todos
+# Buscar colaboradores por nome, caso nao tenha o nome, busca todos (apenas ativos por padrão)
 @router.get("/", response_model=list[schemas.ColaboradorResponse])
-def listar_colaboradores(nome: Optional[str] = None, db: Session = Depends(get_db)):
-    return services.listar_colaboradores_banco(db, nome)
+def listar_colaboradores(db: Session = Depends(get_db), nome: Optional[str] = None, apenas_ativos: bool = True):
+    return services.listar_colaboradores_banco(db, nome, apenas_ativos)
 
 
 # Buscar colaboradores por id

@@ -12,10 +12,10 @@ router = APIRouter(prefix="/setores", tags=["Setores"])
 def criar_setor(setor: schemas.SetorCreate, db: Session = Depends(get_db)):
     return services.criar_setor_banco(setor, db)
 
-# Listar setores (por nome ou todos)
+# Listar setores por nome, caso nao tenha o nome, busca todos (apenas ativos por padrão)
 @router.get("/", response_model=list[schemas.SetorResponse])
-def listar_setores(db: Session = Depends(get_db), nome: Optional[str] = None):
-    return services.listar_setores_banco(db, nome)
+def listar_setores(db: Session = Depends(get_db), nome: Optional[str] = None, apenas_ativos: bool = True):
+    return services.listar_setores_banco(db, nome, apenas_ativos)
 
 # Buscar setor por id
 @router.get("/{setor_id}", response_model=schemas.SetorResponse)

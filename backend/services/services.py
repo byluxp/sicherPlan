@@ -8,6 +8,14 @@ from sqlalchemy.orm import Session
 
 # Criar um novo colaborador
 def criar_colaborador_banco(colaborador: schemas.ColaboradorCreate, db: Session):
+    setor = db.query(models.Setor).filter(models.Setor.id == colaborador.setor_id).first()
+    funcao = db.query(models.Funcao).filter(models.Funcao.id == colaborador.funcao_id).first()
+        
+    if not setor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor nao encontrado")
+    if not funcao:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcao nao encontrada")
+    
     novo_colaborador = models.Colaborador(**colaborador.model_dump())
     db.add(novo_colaborador)
     db.commit()
@@ -16,10 +24,12 @@ def criar_colaborador_banco(colaborador: schemas.ColaboradorCreate, db: Session)
 
 
 # Buscar colaboradores por nome, caso nao tenha o nome, busca todos
-def listar_colaboradores_banco(db: Session, nome: Optional[str] = None):
+def listar_colaboradores_banco(db: Session, nome: Optional[str] = None, apenas_ativos: bool = True):
     query = db.query(models.Colaborador)
     if nome:
         query = query.filter(models.Colaborador.nome.ilike(f"%{nome}%"))
+    if apenas_ativos:
+        query = query.filter(models.Colaborador.ativo.is_(True))
     return query.all()
 
 
@@ -65,10 +75,12 @@ def criar_setor_banco(setor: schemas.SetorCreate, db: Session):
     return novo_setor
 
 # Buscar setores por nome, caso nao possua, lista todos
-def listar_setores_banco(db: Session, nome: Optional[str] = None):
+def listar_setores_banco(db: Session, nome: Optional[str] = None, apenas_ativos: bool = True):
     query = db.query(models.Setor)
     if nome:
         query = query.filter(models.Setor.nome.ilike(f"%{nome}%"))
+    if apenas_ativos:
+        query = query.filter(models.Setor.ativo.is_(True))
     return query.all()
 
 # Buscar setor por id
@@ -106,6 +118,11 @@ def desativar_setor_por_id_banco(setor_id: int, db: Session):
 
 # Criar uma nova função
 def criar_funcao_banco(funcao: schemas.FuncaoCreate, db: Session):
+    setor = db.query(models.Setor).filter(models.Setor.id == funcao.setor_id).first()
+            
+    if not setor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor nao encontrado")
+    
     nova_funcao = models.Funcao(**funcao.model_dump())
     db.add(nova_funcao)
     db.commit()
@@ -114,10 +131,12 @@ def criar_funcao_banco(funcao: schemas.FuncaoCreate, db: Session):
 
 
 # Buscar funções por nome, caso nao tenha o nome, busca todas
-def listar_funcoes_banco(db: Session, nome: Optional[str] = None):
+def listar_funcoes_banco(db: Session, nome: Optional[str] = None, apenas_ativos: bool = True):
     query = db.query(models.Funcao)
     if nome:
         query = query.filter(models.Funcao.nome.ilike(f"%{nome}%"))
+    if apenas_ativos:
+        query = query.filter(models.Funcao.ativo.is_(True))
     return query.all()
 
 
@@ -166,10 +185,12 @@ def criar_epi_banco(epi: schemas.EpiCreate, db: Session):
 
 
 # Buscar EPIs por nome, caso nao tenha o nome, busca todos
-def listar_epis_banco(db: Session, nome: Optional[str] = None):
+def listar_epis_banco(db: Session, nome: Optional[str] = None, apenas_ativos: bool = True):
     query = db.query(models.Epi)
     if nome:
         query = query.filter(models.Epi.nome.ilike(f"%{nome}%"))
+    if apenas_ativos:
+        query = query.filter(models.Epi.ativo.is_(True))
     return query.all()
 
 
@@ -208,6 +229,11 @@ def desativar_epi_por_id_banco(epi_id: int, db: Session):
 
 # Criar um novo ASO
 def criar_aso_banco(aso: schemas.AsoCreate, db: Session):
+    colaborador = db.query(models.Colaborador).filter(models.Colaborador.id == aso.colaborador_id).first()
+    
+    if not colaborador:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador nao encontrado")
+    
     novo_aso = models.Aso(**aso.model_dump())
     db.add(novo_aso)
     db.commit()
@@ -306,6 +332,14 @@ def deletar_certificado_banco(certificado_id: int, db: Session):
 
 # Adicionar um certificado ao colaborador
 def criar_colaborador_certificado_banco(item: schemas.ColaboradorCertificadoCreate, db: Session):
+    colaborador = db.query(models.Colaborador).filter(models.Colaborador.id == item.colaborador_id).first()
+    certificado = db.query(models.Certificado).filter(models.Certificado.id == item.certificado_id).first()
+    
+    if not colaborador:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador nao encontrado")
+    if not certificado:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certificado nao encontrado")
+    
     novo_item = models.ColaboradorCertificado(**item.model_dump())
     db.add(novo_item)
     db.commit()
@@ -355,7 +389,17 @@ def deletar_colaborador_certificado_banco(item_id: int, db: Session):
 
 # Adicionar EPI obrigatório à função
 def criar_funcao_epi_banco(item: schemas.FuncaoEpiObrigatorioCreate, db: Session):
-    novo_item = models.FuncaoEpiObrigatorio(**item.model_dump())
+    funcao = db.query(models.Funcao).filter(models.Funcao.id == item.funcao_id).first()
+    epi = db.query(models.Epi).filter(models.Epi.id == item.epi_id).first()
+    
+    # Antes de criar, verifica se a funcao e o epi existem no banco (pelo id)
+    if not funcao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcão não encontrada")
+    if not epi:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EPI não encontrado")
+        
+    novo_item = models.FuncaoEpiObrigatorio(**item.model_dump())    
+    
     db.add(novo_item)
     db.commit()
     db.refresh(novo_item)
@@ -381,6 +425,7 @@ def buscar_funcao_epi_por_id_banco(funcao_epi_id: int, db: Session):
 # Atualizar vínculo por id
 def atualizar_funcao_epi_banco(funcao_epi_id: int, dados: schemas.FuncaoEpiObrigatorioCreate, db: Session):
     item_banco = db.query(models.FuncaoEpiObrigatorio).filter(models.FuncaoEpiObrigatorio.id == funcao_epi_id).first()
+    
     if not item_banco:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vínculo Função-EPI não encontrado")
     for chave, valor in dados.model_dump().items():
@@ -404,6 +449,17 @@ def deletar_funcao_epi_banco(funcao_epi_id: int, db: Session):
 
 # Criar um novo histórico de função
 def criar_historico_funcao_banco(historico: schemas.HistoricoFuncaoCreate, db: Session):
+    colaborador = db.query(models.Colaborador).filter(models.Colaborador.id == historico.colaborador_id).first()
+    setor = db.query(models.Setor).filter(models.Setor.id == historico.setor_id).first()
+    funcao = db.query(models.Funcao).filter(models.Funcao.id == historico.funcao_id).first()
+    
+    if not colaborador:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador nao encontrado")
+    if not setor:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor nao encontrado")
+    if not funcao:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcao nao encontrada")
+    
     novo_historico = models.HistoricoFuncao(**historico.model_dump())
     db.add(novo_historico)
     db.commit()
@@ -453,6 +509,14 @@ def deletar_historico_funcao_banco(historico_id: int, db: Session):
 
 # Criar uma nova entrega de EPI
 def criar_entrega_epi_banco(entrega: schemas.EntregaEpiCreate, db: Session):
+    colaborador = db.query(models.Colaborador).filter(models.Colaborador.id == entrega.colaborador_id).first()
+    epi = db.query(models.Epi).filter(models.Epi.id == entrega.epi_id).first()
+        
+    if not colaborador:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador nao encontrado")
+    if not epi:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EPI nao encontrado")
+    
     nova_entrega = models.EntregaEpi(**entrega.model_dump())
     db.add(nova_entrega)
     db.commit()
@@ -502,6 +566,11 @@ def deletar_entrega_epi_banco(entrega_id: int, db: Session):
 
 # Criar uma nova ordem de serviço
 def criar_ordem_servico_banco(os: schemas.OrdemServicoCreate, db: Session):
+    colaborador = db.query(models.Colaborador).filter(models.Colaborador.id == os.colaborador_id).first()
+    
+    if not colaborador:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador nao encontrado")
+    
     nova_os = models.OrdemServico(**os.model_dump())
     db.add(nova_os)
     db.commit()
@@ -551,6 +620,11 @@ def deletar_ordem_servico_banco(os_id: int, db: Session):
 
 # Criar uma nova ficha de registro
 def criar_ficha_registro_banco(ficha: schemas.FichaRegistroCreate, db: Session):
+    colaborador = db.query(models.Colaborador).filter(models.Colaborador.id == ficha.colaborador_id).first()
+    
+    if not colaborador:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador nao encontrado")
+    
     nova_ficha = models.FichaRegistro(**ficha.model_dump())
     db.add(nova_ficha)
     db.commit()

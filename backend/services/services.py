@@ -10,11 +10,15 @@ from sqlalchemy.orm import Session
 def criar_colaborador_banco(colaborador: schemas.ColaboradorCreate, db: Session):
     setor = db.query(models.Setor).filter(models.Setor.id == colaborador.setor_id).first()
     funcao = db.query(models.Funcao).filter(models.Funcao.id == colaborador.funcao_id).first()
-        
+    # Verificação de CPF duplicado
+    cpf_existente = db.query(models.Colaborador).filter(models.Colaborador.cpf == colaborador.cpf).first()
+    
     if not setor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor nao encontrado")
     if not funcao:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcao nao encontrada")
+    if cpf_existente:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CPF já cadastrado no sistema.")
     
     novo_colaborador = models.Colaborador(**colaborador.model_dump())
     db.add(novo_colaborador)
@@ -68,6 +72,12 @@ def desativar_colaborador_por_id_banco(colaborador_id: int, db: Session):
 
 # Criar um novo setor
 def criar_setor_banco(setor: schemas.SetorCreate, db: Session):
+    # Verifica se o setor ja existe para devolver o erro correto
+    setor_existente = db.query(models.Setor).filter(models.Setor.nome == setor.nome).first()
+    
+    if setor_existente:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Já existe um setor cadastrado com este nome.")
+    
     novo_setor = models.Setor(**setor.model_dump())
     db.add(novo_setor)
     db.commit()

@@ -1,6 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import datetime, date
+import re
 
 #-------------------Setor-------------------
 class SetorBase(BaseModel):
@@ -45,6 +46,17 @@ class ColaboradorBase(BaseModel):
     setor_id : int
     funcao_id : int
     ativo: Optional[bool] = True
+    
+    
+    # Limpa e valida a quantidade de numeros do CPF
+    @field_validator('cpf')
+    @classmethod
+    def validar_cpf(cls, v: str) -> str:
+        # Remove caracteres nao numericos
+        cpf_limpo = re.sub(r'\D', '', v)
+        if len(cpf_limpo) != 11:
+            raise ValueError('O CPF deve conter exatamente 11 numeros.')
+        return cpf_limpo
 
 class ColaboradorCreate(ColaboradorBase):
     pass #Herda da modelo da base

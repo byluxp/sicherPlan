@@ -119,6 +119,26 @@ def desativar_setor_por_id_banco(setor_id: int, db: Session):
     setor_banco = db.query(models.Setor).filter(models.Setor.id == setor_id).first()
     if not setor_banco:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
+    
+    colaborador_vinculado = db.query(models.Colaborador).filter(
+        models.Colaborador.setor_id == setor_id,
+        models.Colaborador.ativo.is_(True)
+    ).first()
+    funcao_vinculada = db.query(models.Funcao).filter(
+            models.Funcao.setor_id == setor_id,
+            models.Funcao.ativo.is_(True)
+        ).first()
+    
+    if colaborador_vinculado:
+        raise HTTPException(
+            status_code=400, 
+            detail="Não é possível desativar este setor pois existem colaboradores ativos vinculados a ele."
+        )
+    if funcao_vinculada:
+            raise HTTPException(
+                status_code=400, 
+                detail="Não é possível desativar este setor pois existem funcoes ativas vinculadas a ele."
+            )
 
     setor_banco.ativo = False
     db.commit()
@@ -177,6 +197,17 @@ def desativar_funcao_por_id_banco(funcao_id: int, db: Session):
     funcao_banco = db.query(models.Funcao).filter(models.Funcao.id == funcao_id).first()
     if not funcao_banco:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Função não encontrada")
+    
+    colaborador_vinculado = db.query(models.Colaborador).filter(
+            models.Colaborador.funcao_id == funcao_id,
+            models.Colaborador.ativo.is_(True)
+        ).first()
+        
+    if colaborador_vinculado:
+        raise HTTPException(
+            status_code=400, 
+            detail="Não é possível desativar esta funcao pois existem colaboradores ativos vinculados a ela."
+        )
 
     funcao_banco.ativo = False
     db.commit()

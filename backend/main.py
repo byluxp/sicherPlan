@@ -7,6 +7,7 @@ Comandos para rodar o projeto:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from database import engine, Base
 from routers import (
     aso,
@@ -65,3 +66,13 @@ app.include_router(entrega_epi.router)
 app.include_router(ordem_servico.router)
 
 app.include_router(ficha_registro.router)
+
+
+""" 
+FUNÇÃO PARA SALVAR ARQUIVOS LOCALMENTE ATÉ INSTALAR O S3 - SE PRECISAR
+
+os.makedirs("uploads", exist_ok=True)
+
+app.mount("/static", StaticFiles(directiory="uploads"), name="static")
+
+"""

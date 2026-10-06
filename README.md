@@ -194,6 +194,56 @@ O MVP será considerado funcional quando for possível:
 - executar testes básicos do backend;
 - iniciar o projeto seguindo as instruções da documentação.
 
+## Como rodar a interface frontend
+
+A interface do sistema fica na pasta `frontend` e utiliza React + Vite.
+
+### 1. Acesse a pasta do frontend
+
+```bash
+cd frontend
+```
+
+### 2. Instale as dependências
+
+```bash
+npm install
+```
+
+### 3. Inicie o projeto em modo de desenvolvimento
+
+```bash
+npm run dev
+```
+
+O Vite geralmente abrirá a aplicação em uma URL semelhante a:
+
+```bash
+http://localhost:5174
+```
+
+### 4. Build de produção
+
+Para gerar a versão pronta para entrega:
+
+```bash
+npm run build
+```
+
+### 5. Preview da build
+
+Para visualizar a build gerada localmente:
+
+```bash
+npm run preview
+```
+
+### Observações
+
+- Certifique-se de ter o Node.js e o npm instalados na máquina.
+- Se o projeto for executado pela primeira vez, pode ser necessário instalar as dependências antes de iniciar o frontend.
+- O backend deve estar em execução separadamente caso a interface precise consumir APIs locais.
+
 ## Status do projeto
 
 O SicherPlan está em fase inicial de planejamento e desenvolvimento. Este README servirá como documento de referência para acompanhar a implementação e a evolução do sistema.

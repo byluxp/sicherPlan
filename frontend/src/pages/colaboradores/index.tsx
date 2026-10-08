@@ -185,7 +185,6 @@ export default function CollaboratorsPage() {
 					<Card className="gap-6 p-5 sm:p-6">
 						<CardHeader>
 							<CardTitle>{editingId === null ? 'Cadastrar colaborador' : 'Editar colaborador'}</CardTitle>
-							<CardDescription>Os dados são salvos no PostgreSQL por meio do backend.</CardDescription>
 						</CardHeader>
 						<form className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
 							<div className="flex flex-col gap-2">

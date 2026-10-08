@@ -1,5 +1,7 @@
 #Ignorar pastas de ambiente virtual e cache do Python
 .env
+.env.*
+!.env.example
 **/venv/
 **/__pycache__/
 **/arquivos_gerados/

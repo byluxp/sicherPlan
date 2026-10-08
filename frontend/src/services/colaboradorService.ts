@@ -4,22 +4,22 @@ export interface Colaborador {
     id: number;
     nome: string;
     cpf: string;
-    data_nascimento: Date | null;
-    data_admissao: Date | null;
-    data_demissao: Date | null;
+    data_nascimento: string | null;
+    data_admissao: string;
+    data_demissao: string | null;
     setor_id: number;
     funcao_id: number;
     ativo: boolean;
-    criado_em: Date | null;
-    atualizado_em: Date | null;
+    criado_em: string | null;
+    atualizado_em: string | null;
 }
 
 export interface ColaboradorCreate {
     nome: string;
     cpf: string;
-    data_nascimento: Date | null;
-    data_admissao: Date | null;
-    data_demissao: Date | null;
+    data_nascimento: string | null;
+    data_admissao: string;
+    data_demissao: string | null;
     setor_id: number;
     funcao_id: number;
     ativo: boolean;

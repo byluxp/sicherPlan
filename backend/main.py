@@ -9,6 +9,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from database import engine, Base
+#banco de dados fictício para popular o banco de dados com dados iniciais
+from seed_data import seed_initial_data
 from routers import (
     aso,
     colaborador,
@@ -36,6 +38,7 @@ app.add_middleware(
 )
 
 Base.metadata.create_all(bind=engine)
+seed_initial_data()
 
 
 @app.get("/")

@@ -268,6 +268,17 @@ export default function EpiPage() {
 							</div>
 
 							<div className="flex flex-col gap-2">
+								<label htmlFor="epi-ca" className="text-[13px] font-semibold text-text-primary"> CA do EPI </label>
+								<Input
+									id="epi-ca"
+									value={form.caNumber}
+									onChange={(event) => setForm ((current) => ({...current, caNumber: event.target.value}))}
+									placeholder="Ex.: 23456"
+									required
+								/>
+							</div>
+
+							<div className="flex flex-col gap-2">
 								<label htmlFor="epi-type" className="text-[13px] font-semibold text-text-primary">Tipo</label>
 								<Select
 									id="epi-type"
@@ -279,9 +290,9 @@ export default function EpiPage() {
 							</div>
 
 							<div className="flex flex-col gap-2">
-								<label htmlFor="epi-ca" className="text-[13px] font-semibold text-text-primary">Validade do CA</label>
+								<label htmlFor="validade-ca" className="text-[13px] font-semibold text-text-primary">Validade do CA</label>
 								<Input
-									id="epi-ca"
+									id="validade-ca"
 									type="date"
 									min={new Date().toISOString().slice(0, 10)}
 									value={form.expiresOn}
@@ -320,7 +331,7 @@ export default function EpiPage() {
 								{isImporting ? 'Importando...' : 'Importar arquivo'}
 							</Button>
 							<p className="text-xs text-text-secondary">CSV ou XLSX • até 10 MB</p>
-							<p className="text-xs leading-[1.5] text-text-secondary">Inclua nome do EPI, tipo, validade do CA e CA.</p>
+							<p className="text-xs leading-[1.5] text-text-secondary">Inclua nome do EPI, tipo, validade do CA e número do CA.</p>
 							{importMessage && <p role="status" className="text-xs font-medium text-brand">{importMessage}</p>}
 						</div>
 					</Card>

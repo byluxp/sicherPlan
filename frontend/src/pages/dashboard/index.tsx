@@ -181,7 +181,7 @@ export default function DashboardPage() {
 						<span className="text-text-secondary">em 4 setores</span>
 					</div>
 					<p className="text-xs text-text-secondary">
-						Treinamentos e ASOs • Base atualizada em 03/10/2026
+						Treinamentos e ASOs • Base atualizada em {}
 					</p>
 				</section>
 

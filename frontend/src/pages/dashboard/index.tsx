@@ -54,7 +54,6 @@ const asoMetrics: Metric[] = [
 	{ label: 'Vencidos', value: 1, icon: HeartPulse, status: 'danger' },
 ]
 
-const referenceDate = '03/10/2026'
 
 const pendingItems: PendingItem[] = [
 	{
@@ -166,7 +165,9 @@ export default function DashboardPage() {
 					</div>
 					<div className="inline-flex items-center gap-2 rounded-control bg-surface-muted p-3 text-xs text-brand-deep">
 						<CalendarDays aria-hidden="true" className="size-[17px]" />
-						<time>{referenceDate}</time>
+						<time dateTime={new Date().toISOString().slice(0, 10)}>
+							{new Date().toLocaleDateString('pt-BR')}
+						</time>
 					</div>
 				</section>
 

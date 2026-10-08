@@ -48,7 +48,6 @@ type Epi = {
 type EpiForm = Omit<Epi, 'id'>
 type EpiStatus = 'valid' | 'expiring' | 'expired'
 
-const referenceDate = '2026-10-03'
 const referenceTimestamp = Date.UTC(2026, 9, 3)
 const thirtyDays = 30 * 24 * 60 * 60 * 1000
 
@@ -245,7 +244,7 @@ export default function EpiPage() {
 					</div>
 					<div className="inline-flex items-center gap-2 rounded-control bg-surface-muted p-3 text-xs text-brand-deep">
 						<CalendarDays aria-hidden="true" className="size-[17px]" />
-						<time dateTime={referenceDate}>{formatDate(referenceDate)}</time>
+						<time dateTime={new Date().toISOString().slice(0, 10)}>{new Date().toLocaleDateString('pt-BR')}</time>
 					</div>
 				</section>
 
@@ -284,7 +283,7 @@ export default function EpiPage() {
 								<Input
 									id="epi-ca"
 									type="date"
-									min={referenceDate}
+									min={new Date().toISOString().slice(0, 10)}
 									value={form.expiresOn}
 									onChange={(event) => setForm((current) => ({ ...current, expiresOn: event.target.value }))}
 									required

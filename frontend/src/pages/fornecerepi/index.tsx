@@ -56,7 +56,7 @@ type Delivery = {
 
 type DeliveryDraft = Omit<Delivery, 'employeeId'>
 
-const referenceDate = '2026-10-03'
+
 
 const employees: Employee[] = [
 	{ id: '000.000.001-00', name: 'Carlos Eduardo Silva', cpf: '000.000.001-00', role: 'Operador de máquinas', sector: 'Produção' },
@@ -103,7 +103,7 @@ function formatDate(date: string) {
 }
 
 function daysUntil(date: string) {
-	return Math.ceil((new Date(`${date}T00:00:00.000Z`).getTime() - new Date(`${referenceDate}T00:00:00.000Z`).getTime()) / (24 * 60 * 60 * 1000))
+	return Math.ceil((new Date(`${date}T00:00:00.000Z`).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
 }
 
 function caWarning(equipmentItem: Equipment) {
@@ -125,7 +125,7 @@ export default function EpiSupplyPage() {
 	const [employeeSearch, setEmployeeSearch] = useState(employees[0].name)
 	const [selectedEquipmentId, setSelectedEquipmentId] = useState<number | null>(3)
 	const [equipmentSearch, setEquipmentSearch] = useState(equipment[2].name)
-	const [deliveryDate, setDeliveryDate] = useState(referenceDate)
+	const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().slice(0, 10))
 	const [quantity, setQuantity] = useState('1')
 	const [deliveries, setDeliveries] = useState(initialDeliveries)
 	const [stagedDeliveries, setStagedDeliveries] = useState<DeliveryDraft[]>([])
@@ -224,7 +224,7 @@ export default function EpiSupplyPage() {
 					</div>
 					<div className="inline-flex items-center gap-2 rounded-control bg-surface-muted p-3 text-xs text-brand-deep">
 						<CalendarDays aria-hidden="true" className="size-[17px]" />
-						<time dateTime={referenceDate}>03/10/2026</time>
+						<time dateTime={new Date().toISOString().slice(0, 10)}>{new Date().toLocaleDateString('pt-BR')}</time>
 					</div>
 				</section>
 

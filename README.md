@@ -219,7 +219,7 @@ npm run dev
 O Vite geralmente abrirá a aplicação em uma URL semelhante a:
 
 ```bash
-http://localhost:5174
+http://localhost:5173
 ```
 
 ### 4. Build de produção

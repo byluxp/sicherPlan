@@ -36,14 +36,9 @@ import {
 	TableHeader,
 	TableRow,
 } from '../../components/ui/table'
+import { epiService, grupoProtecaoOptions, type Epi, type EpiCreate } from '../../services/epiService'
 
-type Epi = {
-	id: number
-	name: string
-	type: string
-	caNumber: string
-	expiresOn: string
-}
+
 
 type EpiForm = Omit<Epi, 'id'>
 type EpiStatus = 'valid' | 'expiring' | 'expired'
@@ -51,23 +46,15 @@ type EpiStatus = 'valid' | 'expiring' | 'expired'
 const referenceTimestamp = Date.UTC(2026, 9, 3)
 const thirtyDays = 30 * 24 * 60 * 60 * 1000
 
-const epiTypes = [
-	'Proteção da cabeça',
-	'Proteção dos olhos',
-	'Proteção auditiva',
-	'Proteção das mãos',
-	'Proteção dos pés',
-	'Proteção respiratória',
-]
 
 const initialEpis: Epi[] = [
-	{ id: 1, name: 'Capacete de segurança', type: 'Proteção da cabeça', caNumber: '12345', expiresOn: '2028-08-15' },
-	{ id: 2, name: 'Óculos de proteção', type: 'Proteção dos olhos', caNumber: '23456', expiresOn: '2028-06-20' },
-	{ id: 3, name: 'Protetor auricular', type: 'Proteção auditiva', caNumber: '34567', expiresOn: '2026-10-18' },
-	{ id: 4, name: 'Luva de segurança', type: 'Proteção das mãos', caNumber: '45678', expiresOn: '2026-09-25' },
-	{ id: 5, name: 'Botina de segurança', type: 'Proteção dos pés', caNumber: '56789', expiresOn: '2027-12-10' },
-	{ id: 6, name: 'Respirador PFF2', type: 'Proteção respiratória', caNumber: '67890', expiresOn: '2026-10-28' },
+	{ nome: 'Capacete de segurança', grupo_protecao: 'Proteção da cabeça', ca_numero: '12345', data_validade_ca: '2028-08-15', url_pdf_ca: '', durabilidade_dias: 365, ativo: true },
+	{ nome: 'Óculos de proteção', grupo_protecao: 'Proteção dos olhos', ca_numero: '23456', data_validade_ca: '2028-06-20', url_pdf_ca: '', durabilidade_dias: 365, ativo: true },
+	{ nome: 'Protetor auricular', grupo_protecao: 'Proteção auditiva', ca_numero: '34567', data_validade_ca: '2026-10-18', url_pdf_ca: '', durabilidade_dias: 365, ativo: true },
+	{ nome: 'Luva de segurança', grupo_protecao: 'Proteção das mãos', ca_numero: '45678', data_validade_ca: '2026-09-25', url_pdf_ca: '', durabilidade_dias: 365, ativo: true },
+	{ nome: 'Botina de segurança', grupo_protecao: 'Proteção dos pés', ca_numero: '56789', data_validade_ca: '2027-12-10', url_pdf_ca: '', durabilidade_dias: 365, ativo: true },
 ]
+
 
 const iconByType: Record<string, LucideIcon> = {
 	'Proteção da cabeça': HardHat,
@@ -84,10 +71,10 @@ const statusDetails: Record<EpiStatus, { label: string; variant: BadgeVariant; i
 	expired: { label: 'Vencido', variant: 'danger', icon: CircleAlert },
 }
 
-const emptyForm: EpiForm = { name: '', type: epiTypes[0], caNumber: '', expiresOn: '' }
+const emptyForm: EpiForm = { nome: '', grupo_protecao: grupoProtecaoOptions[0].value, ca_numero: '', data_validade_ca: '', url_pdf_ca: '', durabilidade_dias: 365, ativo: true }
 
-function getStatus(expiresOn: string): EpiStatus {
-	const expiresAt = new Date(`${expiresOn}T00:00:00.000Z`).getTime()
+function getStatus(data_validade_ca: string): EpiStatus {
+	const expiresAt = new Date(`${data_validade_ca}T00:00:00.000Z`).getTime()
 	if (expiresAt < referenceTimestamp) return 'expired'
 	if (expiresAt <= referenceTimestamp + thirtyDays) return 'expiring'
 	return 'valid'
@@ -143,16 +130,28 @@ function rowsToEpis(rows: unknown[][], startingId: number): Epi[] {
 	}
 
 	const imported = rows.slice(1).flatMap((row, index) => {
-		const name = String(row[nameIndex] ?? '').trim()
-		const type = String(row[typeIndex] ?? '').trim()
-		const expiresOn = toIsoDate(row[expiryIndex])
-		if (!name || !type || !expiresOn) return []
+		const nome = String(row[nameIndex] ?? '').trim()
+		const grupo_protecao = String(row[typeIndex] ?? '').trim()
+		const data_validade_ca = toIsoDate(row[expiryIndex])
+		const ca_numero = String(row[caIndex] ?? '').trim()
+		const criado_em = new Date().toISOString()
+		const atualizado_em = new Date().toISOString()
+		const url_pdf_ca = ''
+		const durabilidade_dias = 365
+		const ativo = true
+		
+		if (!nome || !grupo_protecao || !data_validade_ca) return []
 		return [{
 			id: startingId + index,
-			name,
-			type,
-			caNumber: caIndex < 0 ? '' : String(row[caIndex] ?? '').trim(),
-			expiresOn,
+			nome,
+			grupo_protecao,
+			criado_em,
+			atualizado_em,
+			url_pdf_ca,
+			ca_numero,
+			data_validade_ca,
+			durabilidade_dias,
+			ativo,
 		}]
 	})
 	if (imported.length === 0) throw new Error('Nenhuma linha válida encontrada para importar.')
@@ -172,21 +171,21 @@ export default function EpiPage() {
 	}, [])
 
 	const statusCounts = epis.reduce<Record<EpiStatus, number>>((counts, epi) => {
-		counts[getStatus(epi.expiresOn)] += 1
+		counts[getStatus(epi.data_validade_ca)] += 1
 		return counts
 	}, { valid: 0, expiring: 0, expired: 0 })
 	const normalizedSearch = searchTerm.trim().toLocaleLowerCase('pt-BR')
 	const visibleEpis = epis.filter((epi) =>
-		`${epi.name} ${epi.type} ${epi.caNumber}`.toLocaleLowerCase('pt-BR').includes(normalizedSearch),
+		`${epi.nome} ${epi.grupo_protecao} ${epi.ca_numero}`.toLocaleLowerCase('pt-BR').includes(normalizedSearch),
 	)
 
 	function handleSave(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault()
-		const name = form.name.trim()
-		if (!name || !form.type || !form.expiresOn) return
+		const name = form.nome.trim()
+		if (!name || !form.grupo_protecao || !form.data_validade_ca) return
 		setEpis((current) => [
 			...current,
-			{ ...form, id: Date.now(), name },
+			{ ...form, id: Date.now(), nome: name },
 		])
 		setForm(emptyForm)
 	}
@@ -260,8 +259,8 @@ export default function EpiPage() {
 								<label htmlFor="epi-name" className="text-[13px] font-semibold text-text-primary">Nome do EPI</label>
 								<Input
 									id="epi-name"
-									value={form.name}
-									onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+									value={form.nome}
+									onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))}
 									placeholder="Ex.: Capacete com jugular"
 									required
 								/>
@@ -271,8 +270,8 @@ export default function EpiPage() {
 								<label htmlFor="epi-ca" className="text-[13px] font-semibold text-text-primary"> CA do EPI </label>
 								<Input
 									id="epi-ca"
-									value={form.caNumber}
-									onChange={(event) => setForm ((current) => ({...current, caNumber: event.target.value}))}
+									value={form.ca_numero}
+									onChange={(event) => setForm ((current) => ({...current, ca_numero: event.target.value}))}
 									placeholder="Ex.: 23456"
 									required
 								/>
@@ -282,10 +281,10 @@ export default function EpiPage() {
 								<label htmlFor="epi-type" className="text-[13px] font-semibold text-text-primary">Tipo</label>
 								<Select
 									id="epi-type"
-									value={form.type}
-									onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}
+									value={form.grupo_protecao}
+									onChange={(event) => setForm((current) => ({ ...current, grupo_protecao: event.target.value }))}
 								>
-									{epiTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+									{grupoProtecaoOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
 								</Select>
 							</div>
 
@@ -295,8 +294,8 @@ export default function EpiPage() {
 									id="validade-ca"
 									type="date"
 									min={new Date().toISOString().slice(0, 10)}
-									value={form.expiresOn}
-									onChange={(event) => setForm((current) => ({ ...current, expiresOn: event.target.value }))}
+									value={form.data_validade_ca}
+									onChange={(event) => setForm((current) => ({ ...current, data_validade_ca: event.target.value }))}
 									required
 								/>
 								<p className="text-xs text-text-secondary">Data de validade do Certificado de Aprovação.</p>
@@ -363,25 +362,25 @@ export default function EpiPage() {
 								</TableHeader>
 								<TableBody>
 									{visibleEpis.map((epi) => {
-										const Icon = iconByType[epi.type] ?? Shield
-										const status = statusDetails[getStatus(epi.expiresOn)]
+										const Icon = iconByType[epi.grupo_protecao] ?? Shield
+										const status = statusDetails[getStatus(epi.data_validade_ca)]
 										const StatusIcon = status.icon
 										return (
-											<TableRow key={epi.id} className="h-[85px]">
+											<TableRow key={epi.ca_numero} className="h-[85px]">
 												<TableCell>
 													<div className="flex min-w-[240px] items-center gap-3">
 														<span className="inline-flex size-[42px] shrink-0 items-center justify-center rounded-control bg-surface-muted text-brand">
 															<Icon aria-hidden="true" className="size-[23px]" />
 														</span>
 														<div className="min-w-0">
-															<p className="font-semibold text-brand-deep">{epi.name}</p>
+															<p className="font-semibold text-brand-deep">{epi.nome}</p>
 															<p className="text-[11px] text-text-secondary">
-																{epi.type}{epi.caNumber ? ` • CA ${epi.caNumber}` : ''}
+																{epi.grupo_protecao}{epi.ca_numero ? ` • CA ${epi.ca_numero}` : ''}
 															</p>
 														</div>
 													</div>
 												</TableCell>
-												<TableCell className="whitespace-nowrap">{formatDate(epi.expiresOn)}</TableCell>
+												<TableCell className="whitespace-nowrap">{formatDate(epi.data_validade_ca)}</TableCell>
 												<TableCell>
 													<Badge variant={status.variant} icon={<StatusIcon />}>
 														{status.label}

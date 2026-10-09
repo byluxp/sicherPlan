@@ -1,18 +1,25 @@
-import {api} from './api'
+import { api } from './api';
 
 export interface Epi {
-    id: number;
     nome: string;
-    descricao: string | null;
-    categoria_id: number;
-    criado_em: string | null;
-    atualizado_em: string | null;
+    grupo_protecao: string;
+    ca_numero: string;
+    data_validade_ca: string;
+    durabilidade_dias: number;
+    ativo: boolean;
+    url_pdf_ca: string;
 }
+
 
 export interface EpiCreate {
     nome: string;
-    descricao: string | null;
-    categoria_id: number;
+    grupo_protecao: string;
+    ca_numero: string;
+    data_validade_ca: string;
+    durabilidade_dias: number;
+    ativo: boolean;
+    url_pdf_ca: string;
+
 }
 
 export const epiService = {
@@ -40,3 +47,14 @@ export const epiService = {
         await api.delete(`/epis/${id}/`);
     },
 };  
+
+export const grupoProtecaoOptions = [
+    { value: 'Proteção da cabeça', label: 'Proteção da cabeça' },
+    { value: 'Proteção auditiva', label: 'Proteção auditiva' },
+    { value: 'Proteção ocular e facial', label: 'Proteção ocular e facial' },
+    { value: 'Proteção respiratória', label: 'Proteção respiratória' },
+    { value: 'Proteção das mãos e braços', label: 'Proteção das mãos e braços' },
+    { value: 'Proteção do tronco', label: 'Proteção do tronco' },
+    { value: 'Proteção dos pés e pernas', label: 'Proteção dos pés e pernas' },
+    { value: 'Proteção contra quedas', label: 'Proteção contra quedas' },
+];

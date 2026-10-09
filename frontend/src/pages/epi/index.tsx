@@ -40,29 +40,20 @@ import { epiService, grupoProtecaoOptions, type Epi, type EpiCreate } from '../.
 
 
 
-type EpiForm = Omit<Epi, 'id'>
+type EpiForm = EpiCreate
 type EpiStatus = 'valid' | 'expiring' | 'expired'
 
-const referenceTimestamp = Date.UTC(2026, 9, 3)
 const thirtyDays = 30 * 24 * 60 * 60 * 1000
-
-
-const initialEpis: Epi[] = [
-	{ nome: 'Capacete de segurança', grupo_protecao: 'Proteção da cabeça', ca_numero: '12345', data_validade_ca: '2028-08-15', url_pdf_ca: '', durabilidade_dias: 365, ativo: true },
-	{ nome: 'Óculos de proteção', grupo_protecao: 'Proteção dos olhos', ca_numero: '23456', data_validade_ca: '2028-06-20', url_pdf_ca: '', durabilidade_dias: 365, ativo: true },
-	{ nome: 'Protetor auricular', grupo_protecao: 'Proteção auditiva', ca_numero: '34567', data_validade_ca: '2026-10-18', url_pdf_ca: '', durabilidade_dias: 365, ativo: true },
-	{ nome: 'Luva de segurança', grupo_protecao: 'Proteção das mãos', ca_numero: '45678', data_validade_ca: '2026-09-25', url_pdf_ca: '', durabilidade_dias: 365, ativo: true },
-	{ nome: 'Botina de segurança', grupo_protecao: 'Proteção dos pés', ca_numero: '56789', data_validade_ca: '2027-12-10', url_pdf_ca: '', durabilidade_dias: 365, ativo: true },
-]
-
 
 const iconByType: Record<string, LucideIcon> = {
 	'Proteção da cabeça': HardHat,
-	'Proteção dos olhos': Glasses,
 	'Proteção auditiva': Ear,
-	'Proteção das mãos': Hand,
-	'Proteção dos pés': Footprints,
+	'Proteção ocular e facial': Glasses,
 	'Proteção respiratória': Shield,
+	'Proteção das mãos e braços': Hand,
+	'Proteção do tronco': Shield,
+	'Proteção dos pés e pernas': Footprints,
+	'Proteção contra quedas': Shield,
 }
 
 const statusDetails: Record<EpiStatus, { label: string; variant: BadgeVariant; icon: LucideIcon }> = {
@@ -75,8 +66,10 @@ const emptyForm: EpiForm = { nome: '', grupo_protecao: grupoProtecaoOptions[0].v
 
 function getStatus(data_validade_ca: string): EpiStatus {
 	const expiresAt = new Date(`${data_validade_ca}T00:00:00.000Z`).getTime()
-	if (expiresAt < referenceTimestamp) return 'expired'
-	if (expiresAt <= referenceTimestamp + thirtyDays) return 'expiring'
+	const today = new Date()
+	today.setUTCHours(0, 0, 0, 0)
+	if (Number.isNaN(expiresAt) || expiresAt < today.getTime()) return 'expired'
+	if (expiresAt <= today.getTime() + thirtyDays) return 'expiring'
 	return 'valid'
 }
 
@@ -117,16 +110,16 @@ async function readImportFile(file: File) {
 	return firstSheet?.data ?? []
 }
 
-function rowsToEpis(rows: unknown[][], startingId: number): Epi[] {
+function rowsToEpis(rows: unknown[][]): EpiCreate[] {
 	if (rows.length < 2) throw new Error('A planilha não contém linhas para importar.')
 
 	const headers = rows[0].map(normalizeHeader)
 	const nameIndex = headers.findIndex((header) => header.includes('nome') || header.includes('equipamento'))
 	const typeIndex = headers.findIndex((header) => header.includes('tipo'))
 	const expiryIndex = headers.findIndex((header) => header.includes('validade') || header.includes('vencimento'))
-	const caIndex = headers.findIndex((header) => header === 'ca' || header.includes('numero do ca') || header.includes('codigo ca'))
-	if (nameIndex < 0 || typeIndex < 0 || expiryIndex < 0) {
-		throw new Error('Inclua colunas de nome do EPI, tipo e validade do CA.')
+	const caIndex = headers.findIndex((header) => header === 'ca' || header.includes('numero do ca') || header.includes('codigo ca') || header.includes('ca numero'))
+	if (nameIndex < 0 || typeIndex < 0 || expiryIndex < 0 || caIndex < 0) {
+		throw new Error('Inclua colunas de nome do EPI, tipo, validade do CA e número do CA.')
 	}
 
 	const imported = rows.slice(1).flatMap((row, index) => {
@@ -134,24 +127,18 @@ function rowsToEpis(rows: unknown[][], startingId: number): Epi[] {
 		const grupo_protecao = String(row[typeIndex] ?? '').trim()
 		const data_validade_ca = toIsoDate(row[expiryIndex])
 		const ca_numero = String(row[caIndex] ?? '').trim()
-		const criado_em = new Date().toISOString()
-		const atualizado_em = new Date().toISOString()
-		const url_pdf_ca = ''
-		const durabilidade_dias = 365
-		const ativo = true
-		
-		if (!nome || !grupo_protecao || !data_validade_ca) return []
+		if (!nome && !grupo_protecao && !data_validade_ca && !ca_numero) return []
+		if (!nome || !grupo_protecao || !data_validade_ca || !ca_numero) {
+			throw new Error(`Preencha nome, tipo, validade e CA na linha ${index + 2}.`)
+		}
 		return [{
-			id: startingId + index,
 			nome,
 			grupo_protecao,
-			criado_em,
-			atualizado_em,
-			url_pdf_ca,
 			ca_numero,
 			data_validade_ca,
-			durabilidade_dias,
-			ativo,
+			url_pdf_ca: null,
+			durabilidade_dias: 365,
+			ativo: true,
 		}]
 	})
 	if (imported.length === 0) throw new Error('Nenhuma linha válida encontrada para importar.')
@@ -159,15 +146,36 @@ function rowsToEpis(rows: unknown[][], startingId: number): Epi[] {
 }
 
 export default function EpiPage() {
-	const [epis, setEpis] = useState(initialEpis)
+	const [epis, setEpis] = useState<Epi[]>([])
 	const [form, setForm] = useState(emptyForm)
 	const [searchTerm, setSearchTerm] = useState('')
+	const [formMessage, setFormMessage] = useState('')
 	const [importMessage, setImportMessage] = useState('')
+	const [loadError, setLoadError] = useState('')
+	const [isLoading, setIsLoading] = useState(true)
+	const [isSaving, setIsSaving] = useState(false)
 	const [isImporting, setIsImporting] = useState(false)
 	const fileInputRef = useRef<HTMLInputElement>(null)
 
 	useEffect(() => {
 		document.title = 'EPIs | sicherPlan'
+		let cancelled = false
+
+		async function loadEpis() {
+			try {
+				const data = await epiService.listarTodos()
+				if (!cancelled) setEpis(data)
+			} catch {
+				if (!cancelled) setLoadError('Não foi possível carregar os EPIs. Verifique a conexão com a API.')
+			} finally {
+				if (!cancelled) setIsLoading(false)
+			}
+		}
+
+		void loadEpis()
+		return () => {
+			cancelled = true
+		}
 	}, [])
 
 	const statusCounts = epis.reduce<Record<EpiStatus, number>>((counts, epi) => {
@@ -179,15 +187,25 @@ export default function EpiPage() {
 		`${epi.nome} ${epi.grupo_protecao} ${epi.ca_numero}`.toLocaleLowerCase('pt-BR').includes(normalizedSearch),
 	)
 
-	function handleSave(event: FormEvent<HTMLFormElement>) {
+	async function handleSave(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault()
-		const name = form.nome.trim()
-		if (!name || !form.grupo_protecao || !form.data_validade_ca) return
-		setEpis((current) => [
-			...current,
-			{ ...form, id: Date.now(), nome: name },
-		])
-		setForm(emptyForm)
+		const nome = form.nome.trim()
+		const ca_numero = form.ca_numero.trim()
+		if (!nome || !ca_numero || !form.grupo_protecao || !form.data_validade_ca) return
+
+		setIsSaving(true)
+		setFormMessage('')
+		try {
+			const created = await epiService.criar({ ...form, nome, ca_numero })
+			setEpis((current) => [...current, created])
+			setForm(emptyForm)
+			setLoadError('')
+			setFormMessage('EPI cadastrado com sucesso.')
+		} catch {
+			setFormMessage('Não foi possível cadastrar o EPI. Verifique os dados e tente novamente.')
+		} finally {
+			setIsSaving(false)
+		}
 	}
 
 	async function handleImport(event: ChangeEvent<HTMLInputElement>) {
@@ -208,9 +226,27 @@ export default function EpiPage() {
 		setIsImporting(true)
 		try {
 			const rows = await readImportFile(file)
-			const imported = rowsToEpis(rows, Date.now())
-			setEpis((current) => [...current, ...imported])
-			setImportMessage(`${imported.length} ${imported.length === 1 ? 'EPI importado' : 'EPIs importados'} com sucesso.`)
+			const imported = rowsToEpis(rows)
+			const created: Epi[] = []
+			let failedCount = 0
+			for (const epi of imported) {
+				try {
+					created.push(await epiService.criar(epi))
+				} catch {
+					failedCount += 1
+				}
+			}
+			if (created.length > 0) {
+				setEpis((current) => [...current, ...created])
+				setLoadError('')
+			}
+			if (failedCount === 0) {
+				setImportMessage(`${created.length} ${created.length === 1 ? 'EPI importado' : 'EPIs importados'} com sucesso.`)
+			} else if (created.length === 0) {
+				setImportMessage(`Não foi possível importar nenhum EPI. ${failedCount} falha(s).`)
+			} else {
+				setImportMessage(`${created.length} EPI(s) importado(s); ${failedCount} falha(s).`)
+			}
 		} catch (error) {
 			setImportMessage(error instanceof Error ? error.message : 'Não foi possível ler o arquivo.')
 		} finally {
@@ -302,8 +338,11 @@ export default function EpiPage() {
 							</div>
 
 							<div>
-								<Button type="submit" icon={<Check className="size-[18px]" />}>Salvar EPI</Button>
+								<Button type="submit" disabled={isSaving} icon={<Check className="size-[18px]" />}>
+									{isSaving ? 'Salvando...' : 'Salvar EPI'}
+								</Button>
 							</div>
+							{formMessage && <p role="status" className="text-xs font-medium text-brand">{formMessage}</p>}
 						</form>
 
 						<div className="flex w-full items-center gap-3 text-xs text-text-secondary" aria-hidden="true">
@@ -361,12 +400,16 @@ export default function EpiPage() {
 									</TableRow>
 								</TableHeader>
 								<TableBody>
-									{visibleEpis.map((epi) => {
+									{isLoading ? (
+										<TableRow><TableCell colSpan={3} className="py-8 text-center text-text-secondary">Carregando EPIs...</TableCell></TableRow>
+									) : loadError && epis.length === 0 ? (
+										<TableRow><TableCell colSpan={3} className="py-8 text-center text-text-secondary">{loadError}</TableCell></TableRow>
+									) : visibleEpis.map((epi) => {
 										const Icon = iconByType[epi.grupo_protecao] ?? Shield
 										const status = statusDetails[getStatus(epi.data_validade_ca)]
 										const StatusIcon = status.icon
 										return (
-											<TableRow key={epi.ca_numero} className="h-[85px]">
+											<TableRow key={epi.id} className="h-[85px]">
 												<TableCell>
 													<div className="flex min-w-[240px] items-center gap-3">
 														<span className="inline-flex size-[42px] shrink-0 items-center justify-center rounded-control bg-surface-muted text-brand">
@@ -389,7 +432,7 @@ export default function EpiPage() {
 											</TableRow>
 										)
 									})}
-									{visibleEpis.length === 0 && (
+										{!isLoading && !(loadError && epis.length === 0) && visibleEpis.length === 0 && (
 										<TableRow>
 											<TableCell colSpan={3} className="py-8 text-center text-text-secondary">
 												Nenhum EPI encontrado.

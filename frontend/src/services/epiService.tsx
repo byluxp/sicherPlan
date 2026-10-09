@@ -1,13 +1,15 @@
 import { api } from './api';
 
 export interface Epi {
+    id: number;
     nome: string;
     grupo_protecao: string;
     ca_numero: string;
     data_validade_ca: string;
-    durabilidade_dias: number;
+    durabilidade_dias: number | null;
     ativo: boolean;
-    url_pdf_ca: string;
+    url_pdf_ca: string | null;
+    criado_em: string;
 }
 
 
@@ -16,10 +18,9 @@ export interface EpiCreate {
     grupo_protecao: string;
     ca_numero: string;
     data_validade_ca: string;
-    durabilidade_dias: number;
+    durabilidade_dias: number | null;
     ativo: boolean;
-    url_pdf_ca: string;
-
+    url_pdf_ca: string | null;
 }
 
 export const epiService = {
@@ -29,7 +30,7 @@ export const epiService = {
     },
 
     buscarPorId: async(id: number): Promise<Epi> => {
-        const response = await api.get(`/epis/${id}/`);
+        const response = await api.get(`/epis/${id}`);
         return response.data;
     },
 
@@ -39,12 +40,12 @@ export const epiService = {
     },
 
     atualizar: async (id: number, dados: EpiCreate): Promise<Epi> => {
-        const response = await api.put(`/epis/${id}/`, dados);
+        const response = await api.put(`/epis/${id}`, dados);
         return response.data;
     },
 
     deletar: async (id: number): Promise<void> => {
-        await api.delete(`/epis/${id}/`);
+        await api.delete(`/epis/${id}`);
     },
 };  
 

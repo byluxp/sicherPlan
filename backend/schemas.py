@@ -197,6 +197,19 @@ class ColaboradorCertificadoResponse(ColaboradorCertificadoBase):
     class Config:
         from_attributes = True
 
+#-------------------Treinamento-------------------
+class TreinamentoCreate(BaseModel):
+    colaborador_id: int
+    certificado_id: int
+    data_emissao: date
+
+class TreinamentoResponse(TreinamentoCreate):
+    id: int
+    criado_em: datetime
+
+    class Config:
+        from_attributes = True
+
 #-------------------Geração de Documento (Certificado Word)-------------------
 class CertificadoDocumentoDados(BaseModel):
     nome_colaborador: str

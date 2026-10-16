@@ -24,6 +24,7 @@ from routers import (
     ordem_servico,
     setor,
     certificado,
+    treinamento,
 )
 
 app = FastAPI(title="SicherPlan API")
@@ -59,6 +60,8 @@ app.include_router(aso.router)
 app.include_router(certificado.router)
 
 app.include_router(colaborador_certificado.router)
+
+app.include_router(treinamento.router)
 
 app.include_router(funcao_epi.router)
 

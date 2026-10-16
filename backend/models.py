@@ -25,6 +25,7 @@ class Colaborador(Base):
     entregas_epi = relationship("EntregaEpi", back_populates="colaborador")
     asos = relationship("Aso", back_populates="colaborador")
     certificados = relationship("ColaboradorCertificado", back_populates="colaborador")
+    treinamentos = relationship("Treinamento", back_populates="colaborador")
     ordens_servico = relationship("OrdemServico", back_populates="colaborador")
     fichas_registro = relationship("FichaRegistro", back_populates="colaborador")
 
@@ -153,6 +154,7 @@ class Certificado(Base):
     criado_em = Column(DateTime, default=func.now())
 
     colaboradores = relationship("ColaboradorCertificado", back_populates="certificado")
+    treinamentos = relationship("Treinamento", back_populates="certificado")
 
 
 class ColaboradorCertificado(Base):
@@ -168,6 +170,19 @@ class ColaboradorCertificado(Base):
 
     colaborador = relationship("Colaborador", back_populates="certificados")
     certificado = relationship("Certificado", back_populates="colaboradores")
+
+
+class Treinamento(Base):
+    __tablename__ = "treinamento"
+
+    id = Column(Integer, primary_key=True)
+    colaborador_id = Column(Integer, ForeignKey("colaborador.id"), nullable=False)
+    certificado_id = Column(Integer, ForeignKey("certificado.id"), nullable=False)
+    data_emissao = Column(Date, nullable=False)
+    criado_em = Column(DateTime, default=func.now())
+
+    colaborador = relationship("Colaborador", back_populates="treinamentos")
+    certificado = relationship("Certificado", back_populates="treinamentos")
 
 
 class OrdemServico(Base):

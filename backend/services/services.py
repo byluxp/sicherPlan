@@ -426,6 +426,26 @@ def deletar_colaborador_certificado_banco(item_id: int, db: Session):
     return {"mensagem": "Registro deletado com sucesso"}
 
 
+def criar_treinamento_banco(treinamento: schemas.TreinamentoCreate, db: Session):
+    colaborador = db.query(models.Colaborador).filter(
+        models.Colaborador.id == treinamento.colaborador_id
+    ).first()
+    certificado = db.query(models.Certificado).filter(
+        models.Certificado.id == treinamento.certificado_id
+    ).first()
+
+    if not colaborador:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador não encontrado")
+    if not certificado:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certificado não encontrado")
+
+    novo_treinamento = models.Treinamento(**treinamento.model_dump())
+    db.add(novo_treinamento)
+    db.commit()
+    db.refresh(novo_treinamento)
+    return novo_treinamento
+
+
 #====================================Funcao EPI Obrigatorio====================================
 
 # Adicionar EPI obrigatório à função

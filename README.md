@@ -194,55 +194,110 @@ O MVP será considerado funcional quando for possível:
 - executar testes básicos do backend;
 - iniciar o projeto seguindo as instruções da documentação.
 
-## Como rodar a interface frontend
+## Como inicializar o ambiente local
 
-A interface do sistema fica na pasta `frontend` e utiliza React + Vite.
+### Requisitos
 
-### 1. Acesse a pasta do frontend
+- Docker com Docker Compose;
+- Python 3 e `venv`;
+- Node.js 22.12 ou superior e npm.
+
+Execute os comandos de Docker na raiz do repositório. Mantenha o banco, o backend e o frontend em terminais separados para que cada processo continue em execução.
+
+### 1. Configure o `.env`
+
+O backend procura o arquivo `.env` na pasta atual ou nas pastas acima. Crie-o na raiz do projeto, ao lado de `docker-compose.yml`. Se ainda não existir, copie o exemplo:
+
+```bash
+cp .env.example .env
+```
+
+No PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+### 2. Inicie o PostgreSQL
+
+Na raiz do projeto:
+
+```bash
+docker compose up -d postgres
+```
+
+Confirme que o container está saudável:
+
+```bash
+docker compose ps
+docker compose exec postgres sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+O Compose lê o `.env` da raiz para configurar o banco. As variáveis `POSTGRES_*` são aplicadas quando o volume é inicializado pela primeira vez; mudar a senha no `.env` depois disso não altera a senha gravada no volume existente.
+
+### 3. Prepare e inicie o backend
+
+Em um segundo terminal, a partir da raiz do projeto:
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
+unset DATABASE_URL
+POSTGRES_PORT=5433 python -m uvicorn main:app --reload
+```
+
+No PowerShell, use os comandos equivalentes:
+
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+$env:POSTGRES_PORT = "5433"
+python -m uvicorn main:app --reload
+```
+
+Ative sempre o virtualenv antes de instalar dependências ou iniciar Uvicorn. Inicie o comando com a pasta atual em `backend`, para que `main:app` seja encontrado. A aplicação cria tabelas que faltam e executa `seed_initial_data()` no startup.
+
+Confirme a API em `http://127.0.0.1:8000/` (deve retornar `{"status":"Backend do SicherPlan rodando"}`) e acesse a documentação em `http://127.0.0.1:8000/docs`.
+
+### 4. Inicie o frontend
+
+Em um terceiro terminal, a partir da raiz:
 
 ```bash
 cd frontend
-```
-
-### 2. Instale as dependências
-
-```bash
 npm install
-```
-
-### 3. Inicie o projeto em modo de desenvolvimento
-
-```bash
 npm run dev
 ```
 
-O Vite geralmente abrirá a aplicação em uma URL semelhante a:
+Abra a URL exibida pelo Vite, normalmente `http://localhost:5173`. O frontend está configurado para chamar a API em `http://127.0.0.1:8000`; portanto, mantenha o backend em execução. Não é necessário criar um `.env` para o frontend neste momento.
 
-```bash
-http://localhost:5173
-```
-
-### 4. Build de produção
-
-Para gerar a versão pronta para entrega:
+Para validar o build de produção ou visualizá-lo localmente:
 
 ```bash
 npm run build
-```
-
-### 5. Preview da build
-
-Para visualizar a build gerada localmente:
-
-```bash
 npm run preview
 ```
 
-### Observações
+### Encerrar e resolver problemas comuns
 
-- Certifique-se de ter o Node.js e o npm instalados na máquina.
-- Se o projeto for executado pela primeira vez, pode ser necessário instalar as dependências antes de iniciar o frontend.
-- O backend deve estar em execução separadamente caso a interface precise consumir APIs locais.
+- Para parar cada processo, use `Ctrl+C` no terminal correspondente. `docker compose down` para e remove o container e a rede, mas preserva o volume do banco.
+- `password authentication failed`: confira se `POSTGRES_PASSWORD` e a senha da `DATABASE_URL` correspondem à senha usada quando o volume foi criado. Alterar o `.env` não atualiza um volume existente.
+- Erro indicando conexão em `localhost:5432`: confira `POSTGRES_PORT`, a porta da `DATABASE_URL` e variáveis antigas exportadas no terminal. Para este Compose, o acesso do backend deve ser pela porta `5433`.
+- `Address already in use` na porta `8000`: verifique `http://127.0.0.1:8000/` antes de iniciar outro Uvicorn. Se a API já estiver respondendo, continue usando essa instância; caso contrário, encerre o processo anterior com `Ctrl+C` no terminal em que ele foi iniciado. O frontend está configurado para usar a porta `8000`.
+- Só reinicialize o banco se puder apagar todos os dados locais. Para remover o banco e recriá-lo do zero, execute na raiz:
+
+```bash
+docker compose down
+docker volume rm sicherplan_postgres_data
+docker compose up -d postgres
+```
+
+O comando `docker volume rm` é destrutivo: apaga permanentemente os dados desse banco local. Não use `docker compose down -v` como tentativa de corrigir autenticação sem confirmar que deseja apagar o volume.
 
 ## Status do projeto
 

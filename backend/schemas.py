@@ -109,6 +109,7 @@ class EntregaEpiBase(BaseModel):
     colaborador_id: int
     epi_id: int
     quantidade: int = 1
+    data_entrega: date
     assinado: Optional[bool] = False
     observacao: Optional[str] = None
 
@@ -118,6 +119,7 @@ class EntregaEpiCreate(EntregaEpiBase):
 class EntregaEpiResponse(EntregaEpiBase):
     id: int
     criado_em: datetime
+    atualizado_em: datetime
 
     class Config:
         from_attributes = True

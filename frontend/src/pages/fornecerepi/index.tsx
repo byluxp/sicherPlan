@@ -29,70 +29,27 @@ import Card, {
 } from '../../components/ui/card'
 import Input from '../../components/ui/input'
 import Select from '../../components/ui/select'
+import {
+	fornecerepiService,
+	type SupplyDelivery,
+	type SupplyEmployee,
+	type SupplyEquipment,
+} from '../../services/fornecerepiService'
 
-type Employee = {
-	id: string
-	name: string
-	cpf: string
-	role: string
-	sector: string
+type Employee = SupplyEmployee
+type Equipment = SupplyEquipment & { icon: LucideIcon }
+type Delivery = SupplyDelivery
+type DeliveryDraft = { equipmentId: number; date: string; quantity: number }
+
+function getEquipmentIcon(group: string): LucideIcon {
+	const normalized = group.toLocaleLowerCase('pt-BR')
+	if (normalized.includes('cabeça')) return HardHat
+	if (normalized.includes('auditiva')) return Ear
+	if (normalized.includes('ocular') || normalized.includes('olhos')) return Glasses
+	if (normalized.includes('mãos')) return Hand
+	if (normalized.includes('pés')) return Footprints
+	return Shield
 }
-
-type Equipment = {
-	id: number
-	name: string
-	type: string
-	ca: string
-	expiresOn: string
-	icon: LucideIcon
-}
-
-type Delivery = {
-	employeeId: string
-	equipmentId: number
-	date: string
-	quantity: number
-}
-
-type DeliveryDraft = Omit<Delivery, 'employeeId'>
-
-
-
-const employees: Employee[] = [
-	{ id: '000.000.001-00', name: 'Carlos Eduardo Silva', cpf: '000.000.001-00', role: 'Operador de máquinas', sector: 'Produção' },
-	{ id: '000.000.002-00', name: 'Juliana Costa Ribeiro', cpf: '000.000.002-00', role: 'Técnica de manutenção', sector: 'Manutenção' },
-	{ id: '000.000.003-00', name: 'Rafael Oliveira Santos', cpf: '000.000.003-00', role: 'Almoxarife', sector: 'Logística' },
-	{ id: '000.000.004-00', name: 'Marcos Paulo Ferreira', cpf: '000.000.004-00', role: 'Soldador', sector: 'Produção' },
-	{ id: '000.000.005-00', name: 'Ana Beatriz Lima', cpf: '000.000.005-00', role: 'Assistente administrativa', sector: 'Administrativo' },
-	{ id: '000.000.006-00', name: 'Fernanda Alves Rocha', cpf: '000.000.006-00', role: 'Operadora de máquinas', sector: 'Produção' },
-	{ id: '000.000.007-00', name: 'Pedro Henrique Souza', cpf: '000.000.007-00', role: 'Técnico de manutenção', sector: 'Manutenção' },
-	{ id: '000.000.008-00', name: 'Lucas Mendes Pereira', cpf: '000.000.008-00', role: 'Almoxarife', sector: 'Logística' },
-]
-
-const equipment: Equipment[] = [
-	{ id: 1, name: 'Capacete de segurança', type: 'Proteção da cabeça', ca: '12345', expiresOn: '2028-08-15', icon: HardHat },
-	{ id: 2, name: 'Óculos de proteção', type: 'Proteção dos olhos', ca: '23456', expiresOn: '2028-06-20', icon: Glasses },
-	{ id: 3, name: 'Protetor auricular', type: 'Proteção auditiva', ca: '34567', expiresOn: '2026-10-18', icon: Ear },
-	{ id: 4, name: 'Luva de segurança', type: 'Proteção das mãos', ca: '45678', expiresOn: '2026-09-25', icon: Hand },
-	{ id: 5, name: 'Botina de segurança', type: 'Proteção dos pés', ca: '56789', expiresOn: '2027-12-10', icon: Footprints },
-	{ id: 6, name: 'Respirador PFF2', type: 'Proteção respiratória', ca: '67890', expiresOn: '2026-10-28', icon: Shield },
-]
-
-const requirementsByRole: Record<string, number[]> = {
-	'Operador de máquinas': [1, 2, 3, 5],
-	'Operadora de máquinas': [1, 2, 3, 5],
-	'Técnica de manutenção': [1, 2, 3, 4],
-	'Técnico de manutenção': [1, 2, 3, 4],
-	Almoxarife: [1, 2, 3, 5],
-	Soldador: [1, 2, 3, 4, 5, 6],
-	'Assistente administrativa': [1, 2],
-}
-
-const initialDeliveries: Delivery[] = [
-	{ employeeId: employees[0].id, equipmentId: 1, date: '2026-10-01', quantity: 1 },
-	{ employeeId: employees[0].id, equipmentId: 2, date: '2026-10-01', quantity: 1 },
-	{ employeeId: employees[0].id, equipmentId: 5, date: '2026-10-01', quantity: 1 },
-]
 
 function initials(name: string) {
 	return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
@@ -107,70 +64,140 @@ function daysUntil(date: string) {
 }
 
 function caWarning(equipmentItem: Equipment) {
-	const days = daysUntil(equipmentItem.expiresOn)
-	if (days < 0) return { text: `O CA deste EPI venceu em ${formatDate(equipmentItem.expiresOn)}. Substitua o equipamento.`, variant: 'danger' as const }
-	if (days <= 30) return { text: `O CA deste EPI vence em ${formatDate(equipmentItem.expiresOn)}. Programe a renovação do equipamento.`, variant: 'warning' as const }
+	const days = daysUntil(equipmentItem.data_validade_ca)
+	if (days < 0) return { text: `O CA deste EPI venceu em ${formatDate(equipmentItem.data_validade_ca)}. Substitua o equipamento.`, variant: 'danger' as const }
+	if (days <= 30) return { text: `O CA deste EPI vence em ${formatDate(equipmentItem.data_validade_ca)}. Programe a renovação do equipamento.`, variant: 'warning' as const }
 	return null
 }
 
-function getDeliveryStatus(item: Equipment, isDelivered: boolean) {
-	const expired = daysUntil(item.expiresOn) < 0
-	if (isDelivered && !expired) return { label: 'Conforme', variant: 'success' as BadgeVariant, icon: Check }
-	if (expired) return { label: 'Não conforme', variant: 'danger' as BadgeVariant, icon: CircleAlert }
+function isDeliveryCurrent(item: Equipment, delivery?: Delivery) {
+	if (!delivery || daysUntil(item.data_validade_ca) < 0) return false
+	if (item.durabilidade_dias === null) return true
+	const replacementDate = new Date(`${delivery.data_entrega}T00:00:00.000Z`)
+	replacementDate.setUTCDate(replacementDate.getUTCDate() + item.durabilidade_dias)
+	return replacementDate.toISOString().slice(0, 10) >= new Date().toISOString().slice(0, 10)
+}
+
+function getDeliveryStatus(item: Equipment, delivery?: Delivery) {
+	if (daysUntil(item.data_validade_ca) < 0) return { label: 'CA vencido', variant: 'danger' as BadgeVariant, icon: CircleAlert }
+	if (isDeliveryCurrent(item, delivery)) return { label: 'Fornecido', variant: 'success' as BadgeVariant, icon: Check }
+	if (delivery && item.durabilidade_dias !== null) return { label: 'Reposição necessária', variant: 'warning' as BadgeVariant, icon: Clock3 }
 	return { label: 'Não conforme', variant: 'danger' as BadgeVariant, icon: CircleAlert }
 }
 
 export default function EpiSupplyPage() {
-	const [selectedEmployeeId, setSelectedEmployeeId] = useState(employees[0].id)
-	const [employeeSearch, setEmployeeSearch] = useState(employees[0].name)
-	const [selectedEquipmentId, setSelectedEquipmentId] = useState<number | null>(3)
-	const [equipmentSearch, setEquipmentSearch] = useState(equipment[2].name)
+	const [employees, setEmployees] = useState<Employee[]>([])
+	const [equipment, setEquipment] = useState<Equipment[]>([])
+	const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null)
+	const [employeeSearch, setEmployeeSearch] = useState('')
+	const [selectedEquipmentId, setSelectedEquipmentId] = useState<number | null>(null)
+	const [equipmentSearch, setEquipmentSearch] = useState('')
 	const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().slice(0, 10))
 	const [quantity, setQuantity] = useState('1')
-	const [deliveries, setDeliveries] = useState(initialDeliveries)
+	const [deliveries, setDeliveries] = useState<Delivery[]>([])
+	const [requiredEquipmentIds, setRequiredEquipmentIds] = useState<number[]>([])
 	const [stagedDeliveries, setStagedDeliveries] = useState<DeliveryDraft[]>([])
 	const [confirmation, setConfirmation] = useState('')
+	const [loadError, setLoadError] = useState('')
+	const [isLoading, setIsLoading] = useState(true)
+	const [isLoadingDetails, setIsLoadingDetails] = useState(false)
+	const [isSaving, setIsSaving] = useState(false)
+	const [reloadKey, setReloadKey] = useState(0)
 
 	useEffect(() => {
 		document.title = 'Fornecimento de EPIs | sicherPlan'
 	}, [])
 
-	const selectedEmployee = employees.find(({ id }) => id === selectedEmployeeId) ?? employees[0]
+	useEffect(() => {
+		let active = true
+		setIsLoading(true)
+		setLoadError('')
+		fornecerepiService.listarDados()
+			.then((data) => {
+				if (!active) return
+				setEmployees(data.colaboradores)
+				setEquipment(data.epis.map((item) => ({ ...item, icon: getEquipmentIcon(item.grupo_protecao) })))
+				const employee = data.colaboradores.find(({ id }) => id === selectedEmployeeId) ?? data.colaboradores[0]
+				setSelectedEmployeeId(employee?.id ?? null)
+				setEmployeeSearch(employee?.nome ?? '')
+			})
+			.catch(() => {
+				if (active) setLoadError('Não foi possível carregar colaboradores e EPIs. Verifique a conexão com a API.')
+			})
+			.finally(() => {
+				if (active) setIsLoading(false)
+			})
+		return () => { active = false }
+	}, [reloadKey])
+
+	const selectedEmployee = employees.find(({ id }) => id === selectedEmployeeId)
 	const selectedEquipment = equipment.find(({ id }) => id === selectedEquipmentId) ?? null
-	const employeeMatches = employeeSearch.trim().toLocaleLowerCase('pt-BR') === selectedEmployee.name.toLocaleLowerCase('pt-BR')
+	useEffect(() => {
+		if (!selectedEmployee) return
+		let active = true
+		setIsLoadingDetails(true)
+		setLoadError('')
+		Promise.all([
+			fornecerepiService.listarEntregas(selectedEmployee.id),
+			fornecerepiService.listarEpisObrigatorios(selectedEmployee.funcao_id),
+		])
+			.then(([employeeDeliveries, requiredIds]) => {
+				if (!active) return
+				setDeliveries(employeeDeliveries)
+				setRequiredEquipmentIds(requiredIds)
+			})
+			.catch(() => {
+				if (active) setLoadError('Não foi possível carregar entregas e EPIs obrigatórios deste colaborador.')
+			})
+			.finally(() => {
+				if (active) setIsLoadingDetails(false)
+			})
+		return () => { active = false }
+	}, [selectedEmployee])
+
+	const employeeMatches = employeeSearch.trim().toLocaleLowerCase('pt-BR') === selectedEmployee?.nome.toLocaleLowerCase('pt-BR')
 		? []
-		: employees.filter(({ name, cpf }) => `${name} ${cpf}`.toLocaleLowerCase('pt-BR').includes(employeeSearch.trim().toLocaleLowerCase('pt-BR')))
-	const equipmentMatches = equipmentSearch.trim().toLocaleLowerCase('pt-BR') === selectedEquipment?.name.toLocaleLowerCase('pt-BR')
+		: employees.filter(({ nome, cpf }) => `${nome} ${cpf}`.toLocaleLowerCase('pt-BR').includes(employeeSearch.trim().toLocaleLowerCase('pt-BR')))
+	const equipmentMatches = equipmentSearch.trim().toLocaleLowerCase('pt-BR') === selectedEquipment?.nome.toLocaleLowerCase('pt-BR')
 		? []
-		: equipment.filter(({ name, type, ca }) => `${name} ${type} ${ca}`.toLocaleLowerCase('pt-BR').includes(equipmentSearch.trim().toLocaleLowerCase('pt-BR')))
-	const requiredItems = (requirementsByRole[selectedEmployee.role] ?? []).map((id) => equipment.find((item) => item.id === id)).filter((item): item is Equipment => Boolean(item))
-	const providedEquipmentIds = new Set(deliveries.filter((delivery) => delivery.employeeId === selectedEmployeeId).map((delivery) => delivery.equipmentId))
-	const fulfilledCount = requiredItems.filter((item) => providedEquipmentIds.has(item.id) && daysUntil(item.expiresOn) >= 0).length
+		: equipment.filter(({ nome, grupo_protecao, ca_numero }) => `${nome} ${grupo_protecao} ${ca_numero}`.toLocaleLowerCase('pt-BR').includes(equipmentSearch.trim().toLocaleLowerCase('pt-BR')))
+	const requiredItems = requiredEquipmentIds.map((id) => equipment.find((item) => item.id === id)).filter((item): item is Equipment => Boolean(item))
+	const latestDeliveries = new Map<number, Delivery>()
+	for (const delivery of deliveries) {
+		const existing = latestDeliveries.get(delivery.epi_id)
+		if (!existing || delivery.data_entrega >= existing.data_entrega) latestDeliveries.set(delivery.epi_id, delivery)
+	}
+	const fulfilledCount = requiredItems.filter((item) => isDeliveryCurrent(item, latestDeliveries.get(item.id))).length
 	const missingCount = requiredItems.length - fulfilledCount
+	const outstandingItem = requiredItems.find((item) => !isDeliveryCurrent(item, latestDeliveries.get(item.id)))
 	const completion = requiredItems.length === 0 ? 0 : Math.round((fulfilledCount / requiredItems.length) * 100)
 	const warning = selectedEquipment ? caWarning(selectedEquipment) : null
 
 	function selectEmployee(employee: Employee) {
 		setSelectedEmployeeId(employee.id)
-		setEmployeeSearch(employee.name)
+		setEmployeeSearch(employee.nome)
 		setStagedDeliveries([])
+		setDeliveries([])
+		setRequiredEquipmentIds([])
 		setConfirmation('')
-		const requiredIds = requirementsByRole[employee.role] ?? []
-		const deliveredIds = deliveries.filter((delivery) => delivery.employeeId === employee.id).map((delivery) => delivery.equipmentId)
-		const firstMissing = requiredIds.find((id) => !deliveredIds.includes(id))
-		const nextEquipment = equipment.find((item) => item.id === firstMissing) ?? equipment[0]
-		setSelectedEquipmentId(nextEquipment.id)
-		setEquipmentSearch(nextEquipment.name)
+		setSelectedEquipmentId(null)
+		setEquipmentSearch('')
 	}
 
 	function selectEquipment(item: Equipment) {
 		setSelectedEquipmentId(item.id)
-		setEquipmentSearch(item.name)
+		setEquipmentSearch(item.nome)
 		setConfirmation('')
 	}
 
 	function currentDraft(): DeliveryDraft | null {
-		if (!selectedEquipmentId || !deliveryDate) return null
+		if (
+			!selectedEquipmentId ||
+			!selectedEquipment ||
+			equipmentSearch.trim().toLocaleLowerCase('pt-BR') !== selectedEquipment.nome.toLocaleLowerCase('pt-BR') ||
+			!deliveryDate ||
+			Number(quantity) < 1
+		) return null
 		return { equipmentId: selectedEquipmentId, date: deliveryDate, quantity: Number(quantity) }
 	}
 
@@ -179,25 +206,68 @@ export default function EpiSupplyPage() {
 		if (!draft) return
 		setStagedDeliveries((current) => [...current, draft])
 		const assignedIds = new Set([
-			...Array.from(providedEquipmentIds),
+			...Array.from(latestDeliveries.keys()),
 			...stagedDeliveries.map((item) => item.equipmentId),
 			draft.equipmentId,
 		])
 		const nextEquipment = requiredItems.find((item) => !assignedIds.has(item.id)) ?? equipment.find((item) => !assignedIds.has(item.id))
 		setSelectedEquipmentId(nextEquipment?.id ?? null)
-		setEquipmentSearch(nextEquipment?.name ?? '')
+		setEquipmentSearch(nextEquipment?.nome ?? '')
 		setConfirmation(`${stagedDeliveries.length + 1} ${stagedDeliveries.length === 0 ? 'item preparado' : 'itens preparados'} para registro.`)
 	}
 
-	function handleSave(event: FormEvent<HTMLFormElement>) {
+	async function handleSave(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault()
+		if (!selectedEmployee || employeeSearch.trim().toLocaleLowerCase('pt-BR') !== selectedEmployee.nome.toLocaleLowerCase('pt-BR')) {
+			setConfirmation('Selecione um colaborador cadastrado antes de salvar.')
+			return
+		}
 		const draft = currentDraft()
 		const allDrafts = [...stagedDeliveries, ...(draft ? [draft] : [])]
-		if (allDrafts.length === 0) return
-		const registered = allDrafts.map((item) => ({ ...item, employeeId: selectedEmployeeId }))
-		setDeliveries((current) => [...current, ...registered])
-		setStagedDeliveries([])
-		setConfirmation(`${registered.length} ${registered.length === 1 ? 'entrega registrada' : 'entregas registradas'} para ${selectedEmployee.name}.`)
+		if (allDrafts.length === 0) {
+			setConfirmation('Selecione um EPI antes de salvar.')
+			return
+		}
+		setIsSaving(true)
+		setConfirmation('')
+		let registeredCount = 0
+		try {
+			for (const item of allDrafts) {
+				const registered = await fornecerepiService.registrarEntrega({
+					colaborador_id: selectedEmployee.id,
+					epi_id: item.equipmentId,
+					quantidade: item.quantity,
+					data_entrega: item.date,
+				})
+				setDeliveries((current) => [...current, registered])
+				registeredCount += 1
+			}
+			setStagedDeliveries([])
+			setSelectedEquipmentId(null)
+			setEquipmentSearch('')
+			setConfirmation(`${registeredCount} ${registeredCount === 1 ? 'entrega registrada' : 'entregas registradas'} para ${selectedEmployee.nome}.`)
+		} catch {
+			setStagedDeliveries(allDrafts.slice(registeredCount))
+			setSelectedEquipmentId(null)
+			setEquipmentSearch('')
+			setConfirmation(`${registeredCount} entrega(s) registrada(s). Os itens restantes continuam preparados para nova tentativa.`)
+		} finally {
+			setIsSaving(false)
+		}
+	}
+
+	if (isLoading || loadError || !selectedEmployee) {
+		const message = loadError || (isLoading ? 'Carregando dados do banco...' : 'Nenhum colaborador ativo encontrado.')
+		return (
+			<div className="min-h-screen bg-surface-page font-sans text-text-primary">
+				<AppHeader activePage="epi" />
+				<main className="mx-auto flex w-full max-w-[1536px] flex-col gap-5 px-4 pb-8 pt-6 sm:px-6 lg:px-8 xl:px-12">
+					<h1 className="text-[26px] font-bold leading-tight text-brand-deep">Fornecimento de EPIs</h1>
+					<p role="status" className="text-sm text-text-secondary">{message}</p>
+					{loadError && <Button type="button" icon={<Clock3 className="size-[18px]" />} onClick={() => setReloadKey((key) => key + 1)}>Tentar novamente</Button>}
+				</main>
+			</div>
+		)
 	}
 
 	return (
@@ -251,23 +321,26 @@ export default function EpiSupplyPage() {
 											<button key={employee.id} type="button" onClick={() => selectEmployee(employee)} className="flex items-start gap-2 rounded-control p-2 text-left hover:bg-surface-muted">
 												<CornerDownRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
 												<span className="min-w-0 flex-1">
-													<strong className="block text-xs font-semibold text-brand-deep">{employee.name}</strong>
-													<span className="block text-[11px] text-text-secondary">{employee.cpf} • {employee.role} • {employee.sector}</span>
+													<strong className="block text-xs font-semibold text-brand-deep">{employee.nome}</strong>
+													<span className="block text-[11px] text-text-secondary">{employee.cpf} • {employee.funcao} • {employee.setor}</span>
 												</span>
 												<Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
 											</button>
 										))}
 									</div>
 								)}
-								{employeeMatches.length === 0 && (
+								{employeeMatches.length === 0 && employeeSearch.trim().toLocaleLowerCase('pt-BR') === selectedEmployee.nome.toLocaleLowerCase('pt-BR') && (
 									<div className="flex items-start gap-2 rounded-control border border-border bg-surface-success p-3">
 										<CornerDownRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
 										<span className="min-w-0 flex-1">
-											<strong className="block text-xs font-semibold text-brand-deep">{selectedEmployee.name}</strong>
-											<span className="block text-[11px] text-text-secondary">{selectedEmployee.cpf} • {selectedEmployee.role} • {selectedEmployee.sector}</span>
+											<strong className="block text-xs font-semibold text-brand-deep">{selectedEmployee.nome}</strong>
+											<span className="block text-[11px] text-text-secondary">{selectedEmployee.cpf} • {selectedEmployee.funcao} • {selectedEmployee.setor}</span>
 										</span>
 										<Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
 									</div>
+								)}
+								{employeeMatches.length === 0 && employeeSearch.trim().toLocaleLowerCase('pt-BR') !== selectedEmployee.nome.toLocaleLowerCase('pt-BR') && employeeSearch.trim() && (
+									<p className="text-xs text-text-secondary">Nenhum colaborador encontrado.</p>
 								)}
 							</div>
 
@@ -286,8 +359,8 @@ export default function EpiSupplyPage() {
 											<button key={item.id} type="button" onClick={() => selectEquipment(item)} className="flex items-start gap-2 rounded-control p-2 text-left hover:bg-surface-muted">
 												<CornerDownRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
 												<span className="min-w-0 flex-1">
-													<strong className="block text-xs font-semibold text-brand-deep">{item.name} • CA {item.ca}</strong>
-													<span className="block text-[11px] text-text-secondary">{item.type} • Validade do CA: {formatDate(item.expiresOn)}</span>
+													<strong className="block text-xs font-semibold text-brand-deep">{item.nome} • CA {item.ca_numero}</strong>
+													<span className="block text-[11px] text-text-secondary">{item.grupo_protecao} • Validade do CA: {formatDate(item.data_validade_ca)}</span>
 												</span>
 												<Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
 											</button>
@@ -298,8 +371,8 @@ export default function EpiSupplyPage() {
 									<div className="flex items-start gap-2 rounded-control border border-border bg-surface-success p-3">
 										<CornerDownRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
 										<span className="min-w-0 flex-1">
-											<strong className="block text-xs font-semibold text-brand-deep">{selectedEquipment.name} • CA {selectedEquipment.ca}</strong>
-											<span className="block text-[11px] text-text-secondary">{selectedEquipment.type} • Validade do CA: {formatDate(selectedEquipment.expiresOn)}</span>
+											<strong className="block text-xs font-semibold text-brand-deep">{selectedEquipment.nome} • CA {selectedEquipment.ca_numero}</strong>
+												<span className="block text-[11px] text-text-secondary">{selectedEquipment.grupo_protecao} • Validade do CA: {formatDate(selectedEquipment.data_validade_ca)}</span>
 										</span>
 										<Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
 									</div>
@@ -328,12 +401,12 @@ export default function EpiSupplyPage() {
 
 							<div className="border-t border-border pt-4">
 								<div className="flex flex-wrap gap-2.5">
-									<Button type="submit" icon={<Save className="size-[18px]" />}>Salvar</Button>
-									<Button type="button" variant="secondary" icon={<Plus className="size-[18px]" />} onClick={handleAddMore}>Adicionar mais</Button>
+									<Button type="submit" disabled={isSaving || isLoadingDetails} icon={<Save className="size-[18px]" />}>{isSaving ? 'Salvando...' : 'Salvar'}</Button>
+									<Button type="button" variant="secondary" disabled={!selectedEquipmentId || isSaving} icon={<Plus className="size-[18px]" />} onClick={handleAddMore}>Adicionar mais</Button>
 								</div>
 							</div>
 							<p role="status" className="text-xs leading-[1.45] text-text-secondary">
-								{confirmation || (stagedDeliveries.length > 0 ? `${stagedDeliveries.length} item(ns) preparado(s), ainda não registrado(s).` : 'Entrega preparada, ainda não registrada.')}
+								{confirmation || (isLoadingDetails ? 'Carregando entregas e requisitos...' : stagedDeliveries.length > 0 ? `${stagedDeliveries.length} item(ns) preparado(s), ainda não registrado(s).` : 'Os dados serão registrados no banco ao salvar.')}
 							</p>
 						</form>
 					</Card>
@@ -341,15 +414,15 @@ export default function EpiSupplyPage() {
 					<Card className="min-w-0 gap-6 p-5 sm:p-6">
 						<CardHeader>
 							<CardTitle>EPIs obrigatórios do colaborador</CardTitle>
-							<CardDescription>Exigências da função • {selectedEmployee.role}</CardDescription>
+							<CardDescription>{isLoadingDetails ? 'Carregando requisitos...' : `Exigências da função • ${selectedEmployee.funcao}`}</CardDescription>
 						</CardHeader>
 
 						<CardContent className="flex flex-col gap-5">
 							<div className="flex flex-wrap items-center gap-3 rounded-control bg-surface-muted p-3.5 sm:p-[18px]">
-								<Avatar size="lg" className="bg-surface-success">{initials(selectedEmployee.name)}</Avatar>
+								<Avatar size="lg" className="bg-surface-success">{initials(selectedEmployee.nome)}</Avatar>
 								<div className="min-w-0 flex-1">
-									<p className="truncate text-sm font-semibold text-brand-deep">{selectedEmployee.name}</p>
-									<p className="text-xs text-text-secondary">CPF {selectedEmployee.cpf} • {selectedEmployee.sector}</p>
+									<p className="truncate text-sm font-semibold text-brand-deep">{selectedEmployee.nome}</p>
+									<p className="text-xs text-text-secondary">CPF {selectedEmployee.cpf} • {selectedEmployee.setor}</p>
 								</div>
 								{missingCount > 0 && <Badge variant="danger" icon={<CircleAlert />}>{missingCount} {missingCount === 1 ? 'pendência' : 'pendências'}</Badge>}
 							</div>
@@ -373,10 +446,9 @@ export default function EpiSupplyPage() {
 
 							<div className="w-full divide-y divide-border">
 								{requiredItems.map((item) => {
-									const isDelivered = providedEquipmentIds.has(item.id)
-									const latestDelivery = deliveries.filter((delivery) => delivery.employeeId === selectedEmployeeId && delivery.equipmentId === item.id).at(-1)
+									const latestDelivery = latestDeliveries.get(item.id)
 									const Icon = item.icon
-									const status = getDeliveryStatus(item, isDelivered)
+									const status = getDeliveryStatus(item, latestDelivery)
 									const StatusIcon = status.icon
 									return (
 										<div key={item.id} className="flex min-w-0 items-center gap-3 py-4 first:pt-0 last:pb-0 sm:gap-3.5">
@@ -384,9 +456,9 @@ export default function EpiSupplyPage() {
 												<Icon aria-hidden="true" className="size-6" />
 											</span>
 											<div className="min-w-0 flex-1">
-												<p className="text-[13px] font-semibold text-brand-deep">{item.name}</p>
+												<p className="text-[13px] font-semibold text-brand-deep">{item.nome}</p>
 												<p className="text-xs text-text-secondary">
-													{latestDelivery ? `Fornecido em ${formatDate(latestDelivery.date)} • CA ${item.ca}` : 'Pendente • Nenhum fornecimento registrado'}
+													{latestDelivery ? `Último fornecimento em ${formatDate(latestDelivery.data_entrega)} • CA ${item.ca_numero} • ${latestDelivery.quantidade} un.` : 'Pendente • Nenhum fornecimento registrado'}
 												</p>
 											</div>
 											<Badge variant={status.variant} icon={<StatusIcon />}>{status.label}</Badge>
@@ -397,7 +469,7 @@ export default function EpiSupplyPage() {
 
 							<div className="flex items-start gap-2 border-t border-border pt-4 text-xs leading-[1.5] text-text-secondary">
 								<Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand" />
-								<p>{missingCount > 0 ? `O ${requiredItems.find((item) => !providedEquipmentIds.has(item.id))?.name.toLocaleLowerCase('pt-BR')} permanece pendente até o registro da entrega.` : 'Todos os equipamentos obrigatórios foram fornecidos.'}</p>
+								<p>{missingCount > 0 ? `O ${outstandingItem?.nome.toLocaleLowerCase('pt-BR')} permanece pendente até o registro da entrega válida.` : requiredItems.length === 0 ? 'Nenhum EPI obrigatório está vinculado a esta função.' : 'Todos os equipamentos obrigatórios foram fornecidos.'}</p>
 							</div>
 						</CardContent>
 					</Card>

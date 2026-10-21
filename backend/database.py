@@ -1,6 +1,7 @@
 import os
 from dotenv import find_dotenv, load_dotenv
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv(find_dotenv(usecwd=True))
@@ -9,12 +10,18 @@ POSTGRES_DB = os.getenv("POSTGRES_DB", "sicherplan")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "sicherplan")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "sicherplan")
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5433")
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}",
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    DATABASE_URL = make_url(DATABASE_URL)
+    if os.getenv("POSTGRES_PORT") and DATABASE_URL.host in ("localhost", "127.0.0.1"):
+        DATABASE_URL = DATABASE_URL.set(port=int(POSTGRES_PORT))
+else:
+    DATABASE_URL = (
+        f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
+        f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+    )
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 

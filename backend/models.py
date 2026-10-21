@@ -16,8 +16,8 @@ class Colaborador(Base):
     setor_id = Column(Integer, ForeignKey("setor.id"), nullable=False)
     funcao_id = Column(Integer, ForeignKey("funcao.id"), nullable=False)
     ativo = Column(Boolean, default=True)
-    criado_em = Column(DateTime, default=func.now())
-    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
+    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now(), server_default=func.now(), nullable=False)
 
     setor = relationship("Setor", back_populates="colaboradores")
     funcao = relationship("Funcao", back_populates="colaboradores")
@@ -37,8 +37,8 @@ class Setor(Base):
     nome = Column(String, unique=True, nullable=False)
     descricao = Column(String)
     ativo = Column(Boolean, default=True)
-    criado_em = Column(DateTime, default=func.now())
-    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
+    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now(), server_default=func.now(), nullable=False)
 
     colaboradores = relationship("Colaborador", back_populates="setor")
     funcoes = relationship("Funcao", back_populates="setor")
@@ -53,8 +53,8 @@ class Funcao(Base):
     setor_id = Column(Integer, ForeignKey("setor.id"), nullable=False)
     descricao = Column(String)
     ativo = Column(Boolean, default=True)
-    criado_em = Column(DateTime, default=func.now())
-    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
+    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now(), server_default=func.now(), nullable=False)
 
     setor = relationship("Setor", back_populates="funcoes")
     colaboradores = relationship("Colaborador", back_populates="funcao")
@@ -73,8 +73,8 @@ class Epi(Base):
     durabilidade_dias = Column(Integer)
     url_pdf_ca = Column(String)
     ativo = Column(Boolean, default=True)
-    criado_em = Column(DateTime, default=func.now())
-    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
+    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now(), server_default=func.now(), nullable=False)
 
     funcoes_obrigatorias = relationship("FuncaoEpiObrigatorio", back_populates="epi")
     entregas_epi = relationship("EntregaEpi", back_populates="epi")
@@ -86,7 +86,7 @@ class FuncaoEpiObrigatorio(Base):
     id = Column(Integer, primary_key=True)
     funcao_id = Column(Integer, ForeignKey("funcao.id"), nullable=False)
     epi_id = Column(Integer, ForeignKey("epi.id"), nullable=False)
-    criado_em = Column(DateTime, default=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
 
     funcao = relationship("Funcao", back_populates="epis_obrigatorios")
     epi = relationship("Epi", back_populates="funcoes_obrigatorias")
@@ -102,7 +102,7 @@ class HistoricoFuncao(Base):
     data_inicio = Column(Date, nullable=False)
     data_fim = Column(Date)
     motivo_mudanca = Column(String)
-    criado_em = Column(DateTime, default=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
 
     colaborador = relationship("Colaborador", back_populates="historicos_funcao")
     funcao = relationship("Funcao", back_populates="historicos_funcao")
@@ -119,8 +119,8 @@ class EntregaEpi(Base):
     data_entrega = Column(Date, nullable=False)
     assinado = Column(Boolean, default=False)
     observacao = Column(String)
-    criado_em = Column(DateTime, default=func.now())
-    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
+    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now(), server_default=func.now(), nullable=False)
 
     colaborador = relationship("Colaborador", back_populates="entregas_epi")
     epi = relationship("Epi", back_populates="entregas_epi")
@@ -136,8 +136,8 @@ class Aso(Base):
     data_vencimento = Column(Date, nullable=False)
     url_documento = Column(String)
     observacao = Column(String)
-    criado_em = Column(DateTime, default=func.now())
-    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
+    atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now(), server_default=func.now(), nullable=False)
 
     colaborador = relationship("Colaborador", back_populates="asos")
 
@@ -151,7 +151,7 @@ class Certificado(Base):
     carga_horaria = Column(Integer)
     validade_meses = Column(Integer)
     descricao = Column(String)
-    criado_em = Column(DateTime, default=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
 
     colaboradores = relationship("ColaboradorCertificado", back_populates="certificado")
     treinamentos = relationship("Treinamento", back_populates="certificado")
@@ -166,7 +166,7 @@ class ColaboradorCertificado(Base):
     data_conclusao = Column(Date, nullable=False)
     data_vencimento = Column(Date)
     url_certificado = Column(String)
-    criado_em = Column(DateTime, default=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
 
     colaborador = relationship("Colaborador", back_populates="certificados")
     certificado = relationship("Certificado", back_populates="colaboradores")
@@ -179,7 +179,7 @@ class Treinamento(Base):
     colaborador_id = Column(Integer, ForeignKey("colaborador.id"), nullable=False)
     certificado_id = Column(Integer, ForeignKey("certificado.id"), nullable=False)
     data_emissao = Column(Date, nullable=False)
-    criado_em = Column(DateTime, default=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
 
     colaborador = relationship("Colaborador", back_populates="treinamentos")
     certificado = relationship("Certificado", back_populates="treinamentos")
@@ -194,7 +194,7 @@ class OrdemServico(Base):
     data_emissao = Column(Date, nullable=False)
     assinado = Column(Boolean, default=False)
     url_documento = Column(String)
-    criado_em = Column(DateTime, default=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
 
     colaborador = relationship("Colaborador", back_populates="ordens_servico")
 
@@ -209,6 +209,6 @@ class FichaRegistro(Base):
     validado = Column(Boolean, default=False)
     data_emissao = Column(Date)
     data_vencimento = Column(Date)
-    criado_em = Column(DateTime, default=func.now())
+    criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
 
     colaborador = relationship("Colaborador", back_populates="fichas_registro")

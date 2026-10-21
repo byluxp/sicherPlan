@@ -1,15 +1,19 @@
+
+import { useEffect, useState } from 'react'
 import {
 	CalendarDays,
 	CircleAlert,
 	Clock3,
 	GraduationCap,
 	HeartPulse,
+	RefreshCw,
 	ShieldCheck,
 	UsersRound,
 	type LucideIcon,
 } from 'lucide-react'
 import AppHeader from '../../components/header/app-header'
-import Badge, { type BadgeVariant } from '../../components/ui/badge'
+import Badge from '../../components/ui/badge'
+import Button from '../../components/ui/button'
 import Card, {
 	CardContent,
 	CardDescription,
@@ -24,100 +28,43 @@ import {
 	TableHeader,
 	TableRow,
 } from '../../components/ui/table'
+	import {
+	carregarDashboard,
+	updateIntervalMilliseconds,
+	type DashboardData,
+	type DashboardMetric,
+} from '../../services/dashboardService'
 
-type Metric = {
-	label: string
-	value: number
-	icon: LucideIcon
-	status: 'success' | 'warning' | 'danger'
-}
-
-type PendingItem = {
-	employee: string
-	role: string
-	item: string
-	dueDate: string
-	status: string
-	variant: BadgeVariant
-	icon: LucideIcon
-}
-
-const trainingMetrics: Metric[] = [
-	{ label: 'Em dia', value: 5, icon: GraduationCap, status: 'success' },
-	{ label: 'A vencer', value: 2, icon: GraduationCap, status: 'warning' },
-	{ label: 'Vencidos', value: 1, icon: GraduationCap, status: 'danger' },
-]
-
-const asoMetrics: Metric[] = [
-	{ label: 'Válidos', value: 6, icon: HeartPulse, status: 'success' },
-	{ label: 'A vencer', value: 1, icon: HeartPulse, status: 'warning' },
-	{ label: 'Vencidos', value: 1, icon: HeartPulse, status: 'danger' },
-]
-
-
-const pendingItems: PendingItem[] = [
-	{
-		employee: 'Carlos Eduardo Silva',
-		role: 'Operador de máquinas',
-		item: 'NR-12 • Segurança em máquinas',
-		dueDate: '18/10/2026',
-		status: 'Treinamento a vencer',
-		variant: 'warning',
-		icon: Clock3,
-	},
-	{
-		employee: 'Juliana Costa Ribeiro',
-		role: 'Técnica de manutenção',
-		item: 'ASO • Exame periódico',
-		dueDate: '12/10/2026',
-		status: 'ASO a vencer',
-		variant: 'warning',
-		icon: Clock3,
-	},
-	{
-		employee: 'Rafael Oliveira Santos',
-		role: 'Almoxarife',
-		item: 'NR-11 • Movimentação de cargas',
-		dueDate: '25/10/2026',
-		status: 'Treinamento a vencer',
-		variant: 'warning',
-		icon: Clock3,
-	},
-	{
-		employee: 'Marcos Paulo Ferreira',
-		role: 'Soldador',
-		item: 'NR-35 • Trabalho em altura',
-		dueDate: '28/09/2026',
-		status: 'Treinamento vencido',
-		variant: 'danger',
-		icon: CircleAlert,
-	},
-	{
-		employee: 'Marcos Paulo Ferreira',
-		role: 'Soldador',
-		item: 'ASO • Exame periódico',
-		dueDate: '30/09/2026',
-		status: 'ASO vencido',
-		variant: 'danger',
-		icon: CircleAlert,
-	},
-]
-
-const metricStatusClasses: Record<Metric['status'], string> = {
+const metricStatusClasses: Record<DashboardMetric['status'], string> = {
 	success: 'bg-surface-success',
 	warning: 'bg-status-warning',
 	danger: 'bg-status-danger',
 }
 
-function MetricPanel({ title, metrics }: { title: string; metrics: Metric[] }) {
+function formatDate(value: string) {
+	const date = new Date(`${value.slice(0, 10)}T00:00:00`)
+	return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('pt-BR').format(date)
+}
+
+function MetricPanel({
+	title,
+	metrics,
+	icon: Icon,
+	unit,
+}: {
+	title: string
+	metrics: DashboardMetric[]
+	icon: LucideIcon
+	unit: string
+}) {
 	return (
 		<Card aria-label={title} className="gap-6 p-4 sm:p-6">
 			<CardHeader>
 				<CardTitle>{title}</CardTitle>
-				<CardDescription>Vencimentos nos próximos 30 dias</CardDescription>
+				<CardDescription>Registros agrupados pela validade informada no banco.</CardDescription>
 			</CardHeader>
 			<CardContent className="grid grid-cols-3 gap-2 sm:gap-3">
-				{metrics.map(({ icon: Icon, label, status, value }) => (
+				{metrics.map(({ label, status, value }) => (
 					<div
 						key={label}
 						className={`flex min-w-0 flex-col gap-3.5 rounded-control p-3 sm:p-[18px] ${metricStatusClasses[status]}`}
@@ -129,9 +76,7 @@ function MetricPanel({ title, metrics }: { title: string; metrics: Metric[] }) {
 						<strong className="text-[32px] font-bold leading-none text-brand-deep sm:text-[40px]">
 							{value}
 						</strong>
-						<span className="text-[11px] leading-[1.45] text-text-primary sm:text-xs">
-							colaboradores
-						</span>
+						<span className="text-[11px] leading-[1.45] text-text-primary sm:text-xs">{unit}</span>
 					</div>
 				))}
 			</CardContent>
@@ -140,6 +85,57 @@ function MetricPanel({ title, metrics }: { title: string; metrics: Metric[] }) {
 }
 
 export default function DashboardPage() {
+	const [dashboard, setDashboard] = useState<DashboardData | null>(null)
+	const [loadError, setLoadError] = useState('')
+	const [isLoading, setIsLoading] = useState(true)
+	const [isRefreshing, setIsRefreshing] = useState(false)
+	const [refreshKey, setRefreshKey] = useState(0)
+
+	useEffect(() => {
+		let active = true
+		let hasLoaded = false
+
+		async function loadDashboard() {
+			if (hasLoaded) setIsRefreshing(true)
+			else setIsLoading(true)
+
+			try {
+				const data = await carregarDashboard()
+				if (!active) return
+				setDashboard(data)
+				setLoadError('')
+			} catch {
+				if (active) setLoadError('Não foi possível atualizar o dashboard. Verifique a conexão com a API.')
+			} finally {
+				hasLoaded = true
+				if (active) {
+					setIsLoading(false)
+					setIsRefreshing(false)
+				}
+			}
+		}
+
+		void loadDashboard()
+		const intervalId = window.setInterval(() => void loadDashboard(), updateIntervalMilliseconds)
+		const refreshWhenVisible = () => {
+			if (document.visibilityState === 'visible') void loadDashboard()
+		}
+		window.addEventListener('focus', refreshWhenVisible)
+		document.addEventListener('visibilitychange', refreshWhenVisible)
+		return () => {
+			active = false
+			window.clearInterval(intervalId)
+			window.removeEventListener('focus', refreshWhenVisible)
+			document.removeEventListener('visibilitychange', refreshWhenVisible)
+		}
+	}, [refreshKey])
+
+	const pendingCollaboratorCount = dashboard?.pendingCollaborators ?? 0
+	const pendingEquipmentCount = dashboard?.pendingEquipment ?? 0
+	const pendingDescription = dashboard
+		? `${dashboard.pendingItems.length} pendência${dashboard.pendingItems.length === 1 ? '' : 's'} em ${pendingCollaboratorCount} colaborador${pendingCollaboratorCount === 1 ? '' : 'es'} e ${pendingEquipmentCount} EPI${pendingEquipmentCount === 1 ? '' : 's'}.`
+		: 'Carregando pendências do banco de dados.'
+
 	return (
 		<div id="inicio" className="min-h-screen bg-surface-page font-sans text-text-primary">
 			<AppHeader activePage="dashboard" />
@@ -163,53 +159,66 @@ export default function DashboardPage() {
 							Acompanhe a saúde ocupacional e mantenha sua equipe em dia.
 						</p>
 					</div>
-					<div className="inline-flex items-center gap-2 rounded-control bg-surface-muted p-3 text-xs text-brand-deep">
-						<CalendarDays aria-hidden="true" className="size-[17px]" />
-						<time dateTime={new Date().toISOString().slice(0, 10)}>
-							{new Date().toLocaleDateString('pt-BR')}
-						</time>
+					<div className="flex flex-wrap items-center gap-3">
+						<div className="inline-flex items-center gap-2 rounded-control bg-surface-muted p-3 text-xs text-brand-deep">
+							<CalendarDays aria-hidden="true" className="size-[17px]" />
+							<time dateTime={new Date().toISOString().slice(0, 10)}>{new Date().toLocaleDateString('pt-BR')}</time>
+						</div>
+						<Button
+							variant="secondary"
+							icon={<RefreshCw className={`size-[18px] ${isRefreshing ? 'animate-spin' : ''}`} />}
+							disabled={isRefreshing || isLoading}
+							onClick={() => setRefreshKey((key) => key + 1)}
+							title="Atualizar dados do dashboard"
+						>
+							{isRefreshing ? 'Atualizando...' : 'Atualizar'}
+						</Button>
 					</div>
 				</section>
 
+				{loadError && <p role="alert" className="rounded-control border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+				{isLoading && !dashboard && <p role="status" className="text-sm text-text-secondary">Carregando dados do banco...</p>}
+
+				{dashboard && <>
 				<section
 					aria-label="Resumo da unidade"
 					className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-border bg-surface-muted px-4 py-3.5 sm:px-5"
 				>
 					<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm">
 						<UsersRound aria-hidden="true" className="size-5 text-brand" />
-						<strong className="font-semibold text-brand-deep">8 colaboradores ativos</strong>
-						<span className="text-text-secondary">em 4 setores</span>
+						<strong className="font-semibold text-brand-deep">{dashboard.activeCollaborators} colaboradores ativos</strong>
+						<span className="text-text-secondary">em {dashboard.activeSectors} setores ativos</span>
 					</div>
 					<p className="text-xs text-text-secondary">
-						Treinamentos e ASOs • Base atualizada em {}
+						Base consultada em {new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(dashboard.updatedAt))}
 					</p>
 				</section>
 
-				<section aria-label="Resumo de conformidade" className="grid gap-6 lg:grid-cols-2">
-					<MetricPanel title="Treinamentos" metrics={trainingMetrics} />
-					<MetricPanel title="ASOs" metrics={asoMetrics} />
+				<section aria-label="Resumo de conformidade" className="grid gap-6 lg:grid-cols-2 2xl:grid-cols-3">
+					<MetricPanel title="Treinamentos" metrics={dashboard.trainingMetrics} icon={GraduationCap} unit="certificados" />
+					<MetricPanel title="ASOs" metrics={dashboard.asoMetrics} icon={HeartPulse} unit="exames" />
+					<MetricPanel title="EPIs" metrics={dashboard.epiMetrics} icon={ShieldCheck} unit="equipamentos" />
 				</section>
 
 				<Card id="pendencias" aria-labelledby="pending-title" className="gap-6 p-4 sm:p-6">
 					<CardHeader>
 						<CardTitle id="pending-title">Pendências dos colaboradores</CardTitle>
-						<CardDescription>
-							5 pendências em 4 colaboradores • Priorize vencidos e programe as renovações.
-						</CardDescription>
+						<CardDescription>{pendingDescription}</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<Table aria-label="Pendências dos colaboradores">
 							<TableHeader>
 								<TableRow className="border-0">
-									<TableHead className="w-[270px] sm:w-[350px]">COLABORADOR / FUNÇÃO</TableHead>
+									<TableHead className="w-[270px] sm:w-[350px]">COLABORADOR / REFERÊNCIA</TableHead>
 									<TableHead>PENDÊNCIA</TableHead>
 									<TableHead className="w-[140px]">VENCIMENTO</TableHead>
 									<TableHead className="w-[210px]">SITUAÇÃO</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{pendingItems.map(({ dueDate, employee, icon: Icon, item, role, status, variant }) => (
-									<TableRow key={`${employee}-${item}`}>
+								{dashboard.pendingItems.map(({ dueDate, employee, id, item, role, status, variant }) => {
+									const Icon = variant === 'danger' ? CircleAlert : Clock3
+									return <TableRow key={id}>
 										<TableCell>
 											<div className="flex min-w-0 flex-col gap-0.5">
 												<strong className="font-semibold text-brand-deep">{employee}</strong>
@@ -217,18 +226,20 @@ export default function DashboardPage() {
 											</div>
 										</TableCell>
 										<TableCell>{item}</TableCell>
-										<TableCell className="whitespace-nowrap">{dueDate}</TableCell>
+										<TableCell className="whitespace-nowrap">{formatDate(dueDate)}</TableCell>
 										<TableCell>
 											<Badge variant={variant} icon={<Icon />}>
 												{status}
 											</Badge>
 										</TableCell>
 									</TableRow>
-								))}
+								})}
+								{dashboard.pendingItems.length === 0 && <TableRow><TableCell colSpan={4} className="py-8 text-center text-text-secondary">Nenhuma pendência de vencimento encontrada.</TableCell></TableRow>}
 							</TableBody>
 						</Table>
 					</CardContent>
 				</Card>
+				</>}
 			</main>
 		</div>
 	)

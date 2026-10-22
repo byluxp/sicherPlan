@@ -217,8 +217,8 @@ export default function EpiPage() {
 			event.target.value = ''
 			return
 		}
-		if (!/\.(csv|xlsx)$/i.test(file.name)) {
-			setImportMessage('Selecione um arquivo CSV ou XLSX.')
+		if (!/\.(pdf)$/i.test(file.name)) {
+			setImportMessage('Selecione um arquivo PDF.')
 			event.target.value = ''
 			return
 		}
@@ -241,11 +241,11 @@ export default function EpiPage() {
 				setLoadError('')
 			}
 			if (failedCount === 0) {
-				setImportMessage(`${created.length} ${created.length === 1 ? 'EPI importado' : 'EPIs importados'} com sucesso.`)
+				setImportMessage(`${created.length} ${created.length === 1 ? 'CA importado' : 'CAs importados'} com sucesso.`)
 			} else if (created.length === 0) {
-				setImportMessage(`Não foi possível importar nenhum EPI. ${failedCount} falha(s).`)
+				setImportMessage(`Não foi possível importar nenhum certificado de aprovação. ${failedCount} falha(s).`)
 			} else {
-				setImportMessage(`${created.length} EPI(s) importado(s); ${failedCount} falha(s).`)
+				setImportMessage(`${created.length} Certificado(s) importado(s); ${failedCount} falha(s).`)
 			}
 		} catch (error) {
 			setImportMessage(error instanceof Error ? error.message : 'Não foi possível ler o arquivo.')
@@ -368,8 +368,8 @@ export default function EpiPage() {
 							>
 								{isImporting ? 'Importando...' : 'Importar arquivo'}
 							</Button>
-							<p className="text-xs text-text-secondary">CSV ou XLSX • até 10 MB</p>
-							<p className="text-xs leading-[1.5] text-text-secondary">Inclua nome do EPI, tipo, validade do CA e número do CA.</p>
+							<p className="text-xs text-text-secondary"> PDF • até 10 MB</p>
+							<p className="text-xs leading-[1.5] text-text-secondary">Importe o Certificado de Aprovação do MTE.</p>
 							{importMessage && <p role="status" className="text-xs font-medium text-brand">{importMessage}</p>}
 						</div>
 					</Card>

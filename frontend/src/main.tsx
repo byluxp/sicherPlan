@@ -6,6 +6,7 @@ import DashboardPage from './pages/dashboard'
 import FunctionsSectorsPage from './pages/funcaosetor'
 import EpiPage from './pages/epi'
 import EpiSupplyPage from './pages/fornecerepi'
+import GenerateCertificatePage from './pages/gerarcertificado'
 
 const currentPath = window.location.pathname.replace(/\/$/, '')
 const CurrentPage = currentPath === '/colaboradores'
@@ -16,6 +17,8 @@ const CurrentPage = currentPath === '/colaboradores'
       ? EpiPage
       : currentPath === '/fornecer-epi'
         ? EpiSupplyPage
+        : currentPath === '/gerar-certificado'
+          ? GenerateCertificatePage
         : DashboardPage
 
 createRoot(document.getElementById('root')!).render(

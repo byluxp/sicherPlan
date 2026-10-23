@@ -106,6 +106,15 @@ CREATE TABLE "colaborador_certificado" (
     "criado_em" timestamp DEFAULT(now())
 );
 
+CREATE TABLE "treinamento" (
+    "id" integer PRIMARY KEY,
+    "colaborador_id" integer NOT NULL,
+    "certificado_id" integer NOT NULL,
+    "colaborador_certificado_id" integer UNIQUE,
+    "data_emissao" date NOT NULL,
+    "criado_em" timestamp DEFAULT(now())
+);
+
 CREATE TABLE "ordem_servico" (
     "id" integer PRIMARY KEY,
     "colaborador_id" integer NOT NULL,
@@ -165,6 +174,15 @@ ADD FOREIGN KEY ("colaborador_id") REFERENCES "colaborador" ("id") DEFERRABLE IN
 
 ALTER TABLE "colaborador_certificado"
 ADD FOREIGN KEY ("certificado_id") REFERENCES "certificado" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "treinamento"
+ADD FOREIGN KEY ("colaborador_id") REFERENCES "colaborador" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "treinamento"
+ADD FOREIGN KEY ("certificado_id") REFERENCES "certificado" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "treinamento"
+ADD FOREIGN KEY ("colaborador_certificado_id") REFERENCES "colaborador_certificado" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE "ordem_servico"
 ADD FOREIGN KEY ("colaborador_id") REFERENCES "colaborador" ("id") DEFERRABLE INITIALLY IMMEDIATE;

@@ -11,7 +11,7 @@ import {
 import Avatar from '../ui/avatar'
 import Button from '../ui/button'
 
-export type ActivePage = 'dashboard' | 'collaborators' | 'functions' | 'epi'
+export type ActivePage = 'dashboard' | 'collaborators' | 'functions' | 'epi' | 'certificates'
 
 const navigationItems: {
 	label: string
@@ -33,7 +33,7 @@ export function AppHeader({ activePage }: { activePage: ActivePage }) {
 					<HandHelping aria-hidden="true" className="size-[18px]" />
 					<span>Fornecer EPI</span>
 				</Button>
-				<Button variant="secondary" className="px-3 sm:px-4">
+				<Button variant="secondary" className="px-3 sm:px-4" aria-current={activePage === 'certificates' ? 'page' : undefined} onClick={() => window.location.assign('/gerar-certificado')}>
 					<FileBadge aria-hidden="true" className="size-[18px]" />
 					<span>Gerar certificado</span>
 				</Button>

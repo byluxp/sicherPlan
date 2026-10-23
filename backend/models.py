@@ -170,6 +170,7 @@ class ColaboradorCertificado(Base):
 
     colaborador = relationship("Colaborador", back_populates="certificados")
     certificado = relationship("Certificado", back_populates="colaboradores")
+    treinamento = relationship("Treinamento", back_populates="colaborador_certificado", uselist=False)
 
 
 class Treinamento(Base):
@@ -178,11 +179,14 @@ class Treinamento(Base):
     id = Column(Integer, primary_key=True)
     colaborador_id = Column(Integer, ForeignKey("colaborador.id"), nullable=False)
     certificado_id = Column(Integer, ForeignKey("certificado.id"), nullable=False)
+    # documento emitido para este treinamento (nulo para treinamentos registrados sem certificado gerado)
+    colaborador_certificado_id = Column(Integer, ForeignKey("colaborador_certificado.id"), unique=True)
     data_emissao = Column(Date, nullable=False)
     criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
 
     colaborador = relationship("Colaborador", back_populates="treinamentos")
     certificado = relationship("Certificado", back_populates="treinamentos")
+    colaborador_certificado = relationship("ColaboradorCertificado", back_populates="treinamento")
 
 
 class OrdemServico(Base):

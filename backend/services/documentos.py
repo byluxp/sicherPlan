@@ -1,43 +1,51 @@
-import os
 import re
+from datetime import date
+from pathlib import Path
+
 from docxtpl import DocxTemplate
-from sqlalchemy.orm import Session
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 
 import schemas
 
-def gerar_docx_certificado(dados: schemas.CertificadoDocumentoDados, db: Session = None) -> str:
-    # função usada apenas para gerar o .docx, descomentar quando rodar
-    # novo_registro = main.criar_colaborador_certificado(db=db, item=dados)
-    # colaborador = novo_registro.colaborador
-    # certificado_base = novo_registro.certificado
-    # nome_funcao = colaborador.funcao.nome if colaborador.funcao else "Não informada"
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+TEMPLATES_DIR = BACKEND_DIR / "templates"
+CERTIFICADOS_DIR = BACKEND_DIR / "arquivos_gerados" / "certificados"
+
+
+def _formatar_cpf(cpf: str) -> str:
+    digitos = re.sub(r"\D", "", cpf)
+    if len(digitos) != 11:
+        return cpf
+    return f"{digitos[:3]}.{digitos[3:6]}.{digitos[6:9]}-{digitos[9:]}"
+
+
+def _formatar_data(valor: date) -> str:
+    return valor.strftime("%d/%m/%Y")
+
+
+# Caminho fixo do arquivo gerado, usado tanto na geração quanto no download
+def caminho_certificado(registro_id: int, nr_codigo: str) -> Path:
+    return CERTIFICADOS_DIR / f"Certificado_{nr_codigo.replace('-', '')}_{registro_id}.docx"
+
+
+def gerar_docx_certificado(dados: schemas.CertificadoDocumentoDados, nome_template: str, caminho_saida: Path) -> Path:
+    modelo = TEMPLATES_DIR / nome_template
+    if not modelo.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Modelo de certificado não encontrado: {nome_template}",
+        )
 
     contexto = {
         "nome_colaborador": dados.nome_colaborador,
-        "cpf": dados.cpf,
+        "cpf": _formatar_cpf(dados.cpf),
         "funcao_colaborador": dados.funcao_colaborador,
-        "data_conclusao": dados.data_conclusao.strftime("%d/%m/%Y") if hasattr(dados.data_conclusao, "strftime") else dados.data_conclusao,
+        "data_conclusao": _formatar_data(dados.data_conclusao),
     }
 
-    template_path = "templates/modelo_certificado.docx"
-    if not os.path.exists(template_path):
-        raise HTTPException(status_code=500, detail="Modelo .docx não encontrado em backend/templates/")
-
-    doc = DocxTemplate(template_path)
+    doc = DocxTemplate(str(modelo))
     doc.render(contexto)
 
-    #deixa essa pasta pra armazenar os arquivos gerados pra teste mas ignorei no git
-    # excluir depois de testar
-    pasta_saida = "arquivos_gerados/certificados"
-    os.makedirs(pasta_saida, exist_ok=True)
-    
-    nome_sanitizado = re.sub(r'[^a-zA-Z0-9_]', '_', dados.nome_colaborador)
-    caminho_saida = f"{pasta_saida}/Certificado_{nome_sanitizado}.docx"
-    doc.save(caminho_saida)
-
-    # não sei o caminho da url que vamos colocar no bd mas fica a função salva aqui
-    # novo_registro.url_certificado = caminho_saida
-    # db.commit()
-
+    caminho_saida.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(str(caminho_saida))
     return caminho_saida

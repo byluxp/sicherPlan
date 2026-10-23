@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime, date
 import re
 
@@ -199,11 +199,20 @@ class ColaboradorCertificadoResponse(ColaboradorCertificadoBase):
     class Config:
         from_attributes = True
 
+class GerarCertificadoRequest(BaseModel):
+    colaborador_id: int
+    nr_codigo: Literal["NR-06", "NR-12", "NR-18", "NR-35"]
+    data_conclusao: date
+
+class GerarCertificadoResponse(ColaboradorCertificadoResponse):
+    treinamento_id: int
+
 #-------------------Treinamento-------------------
 class TreinamentoCreate(BaseModel):
     colaborador_id: int
     certificado_id: int
     data_emissao: date
+    colaborador_certificado_id: Optional[int] = None
 
 class TreinamentoResponse(TreinamentoCreate):
     id: int
@@ -212,12 +221,20 @@ class TreinamentoResponse(TreinamentoCreate):
     class Config:
         from_attributes = True
 
+# Item do histórico: o primeiro treinamento de cada certificado é o inicial, os seguintes são reciclagens
+class TreinamentoHistoricoResponse(TreinamentoResponse):
+    nr_codigo: Optional[str] = None
+    nome_certificado: str
+    tipo: Literal["inicial", "reciclagem"]
+    data_vencimento: Optional[date] = None
+    url_certificado: Optional[str] = None
+
 #-------------------Geração de Documento (Certificado Word)-------------------
 class CertificadoDocumentoDados(BaseModel):
     nome_colaborador: str
     cpf: str
     funcao_colaborador: str
-    data_conclusao: str
+    data_conclusao: date
 
 #-------------------Ordem Servico-------------------
 class OrdemServicoBase(BaseModel):

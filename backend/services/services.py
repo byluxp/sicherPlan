@@ -1,7 +1,10 @@
 from typing import Optional
+from calendar import monthrange
+from datetime import date
 import models, schemas
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from services import documentos as documentos_service
 
 
 #====================================Colaboradores====================================
@@ -388,6 +391,119 @@ def criar_colaborador_certificado_banco(item: schemas.ColaboradorCertificadoCrea
     return novo_item
 
 
+# nome do treinamento, template, carga horária (h) e validade (meses) usados ao criar o certificado no catálogo
+CERTIFICADOS_POR_NR = {
+    "NR-06": ("Equipamento de proteção individual", "CERTIFICADO_NR_06_Template.docx", 2, None),
+    "NR-18": ("Condições e meio ambiente de trabalho na indústria da construção", "CERTIFICADO_NR_18_Template.docx", 6, None),
+    "NR-35": ("Trabalho em altura", "CERTIFICADO_NR_35_Template.docx", 8, 24),
+}
+# NR-12 em espera: modelo de certificado ainda não definido
+CERTIFICADOS_EM_ESPERA = {"NR-12"}
+
+
+def _add_months(value: date, months: int) -> date:
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    return date(year, month, min(value.day, monthrange(year, month)[1]))
+
+
+def gerar_certificado_documento_banco(dados: schemas.GerarCertificadoRequest, db: Session):
+    colaborador = db.query(models.Colaborador).filter(models.Colaborador.id == dados.colaborador_id).first()
+    if not colaborador:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador não encontrado")
+
+    if dados.nr_codigo in CERTIFICADOS_EM_ESPERA:
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=f"O certificado da {dados.nr_codigo} ainda não está disponível")
+    nome_treinamento, nome_modelo, carga_horaria, validade_meses = CERTIFICADOS_POR_NR[dados.nr_codigo]
+
+    if dados.data_conclusao > date.today():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A data do treinamento não pode estar no futuro")
+
+    certificado = db.query(models.Certificado).filter(models.Certificado.nr_codigo == dados.nr_codigo).first()
+    if certificado:
+        _validar_nova_emissao(db, colaborador.id, certificado, dados)
+    else:
+        certificado = models.Certificado(
+            nome=nome_treinamento,
+            nr_codigo=dados.nr_codigo,
+            carga_horaria=carga_horaria,
+            validade_meses=validade_meses,
+        )
+        db.add(certificado)
+        db.flush()
+
+    vencimento = _add_months(dados.data_conclusao, certificado.validade_meses) if certificado.validade_meses else None
+    registro = models.ColaboradorCertificado(
+        colaborador_id=colaborador.id,
+        certificado_id=certificado.id,
+        data_conclusao=dados.data_conclusao,
+        data_vencimento=vencimento,
+    )
+    db.add(registro)
+    db.flush()
+    treinamento = _registrar_treinamento_do_certificado(db, registro)
+
+    dados_documento = schemas.CertificadoDocumentoDados(
+        nome_colaborador=colaborador.nome,
+        cpf=colaborador.cpf,
+        funcao_colaborador=colaborador.funcao.nome if colaborador.funcao else "Não informada",
+        data_conclusao=dados.data_conclusao,
+    )
+    caminho_saida = documentos_service.caminho_certificado(registro.id, dados.nr_codigo)
+    try:
+        documentos_service.gerar_docx_certificado(dados_documento, nome_modelo, caminho_saida)
+        registro.url_certificado = f"/colaborador-certificados/{registro.id}/documento"
+        db.commit()
+        db.refresh(registro)
+        db.refresh(treinamento)
+    except Exception:
+        db.rollback()
+        caminho_saida.unlink(missing_ok=True)
+        raise
+
+    return registro, treinamento, caminho_saida
+
+
+# Só permite nova emissão (reciclagem) quando o último certificado da mesma NR estiver vencido
+def _validar_nova_emissao(db: Session, colaborador_id: int, certificado: models.Certificado, dados: schemas.GerarCertificadoRequest):
+    ultimo = db.query(models.ColaboradorCertificado).filter(
+        models.ColaboradorCertificado.colaborador_id == colaborador_id,
+        models.ColaboradorCertificado.certificado_id == certificado.id,
+    ).order_by(models.ColaboradorCertificado.data_conclusao.desc()).first()
+    if not ultimo:
+        return
+    if ultimo.data_vencimento is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A {dados.nr_codigo} já foi emitida para este colaborador e não possui vencimento",
+        )
+    if ultimo.data_vencimento >= date.today():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A {dados.nr_codigo} deste colaborador está válida até {ultimo.data_vencimento:%d/%m/%Y}. A reciclagem só pode ser emitida após o vencimento",
+        )
+    if dados.data_conclusao <= ultimo.data_conclusao:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"A data da reciclagem deve ser posterior ao último treinamento ({ultimo.data_conclusao:%d/%m/%Y})",
+        )
+
+
+# Cria o registro de treinamento vinculado ao certificado emitido (mesma transação da emissão).
+# Novos dados do treinamento (ex.: instrutor) devem ser repassados aqui.
+def _registrar_treinamento_do_certificado(db: Session, registro: models.ColaboradorCertificado) -> models.Treinamento:
+    treinamento = models.Treinamento(
+        colaborador_id=registro.colaborador_id,
+        certificado_id=registro.certificado_id,
+        colaborador_certificado_id=registro.id,
+        data_emissao=registro.data_conclusao,
+    )
+    db.add(treinamento)
+    db.flush()
+    return treinamento
+
+
 # Buscar certificados por colaborador, caso nao tenha o colaborador, busca todos
 def listar_colaborador_certificados_banco(db: Session, colaborador_id: Optional[int] = None):
     query = db.query(models.ColaboradorCertificado)
@@ -421,10 +537,18 @@ def deletar_colaborador_certificado_banco(item_id: int, db: Session):
     item_banco = db.query(models.ColaboradorCertificado).filter(models.ColaboradorCertificado.id == item_id).first()
     if not item_banco:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro não encontrado")
+    # o treinamento gerado junto com o certificado é removido com ele
+    if item_banco.treinamento:
+        db.delete(item_banco.treinamento)
+    nr_codigo = item_banco.certificado.nr_codigo if item_banco.certificado else None
     db.delete(item_banco)
     db.commit()
+    if nr_codigo:
+        documentos_service.caminho_certificado(item_id, nr_codigo).unlink(missing_ok=True)
     return {"mensagem": "Registro deletado com sucesso"}
 
+
+#====================================Treinamento====================================
 
 def criar_treinamento_banco(treinamento: schemas.TreinamentoCreate, db: Session):
     colaborador = db.query(models.Colaborador).filter(
@@ -438,12 +562,68 @@ def criar_treinamento_banco(treinamento: schemas.TreinamentoCreate, db: Session)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador não encontrado")
     if not certificado:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certificado não encontrado")
+    if treinamento.colaborador_certificado_id is not None:
+        registro = db.query(models.ColaboradorCertificado).filter(
+            models.ColaboradorCertificado.id == treinamento.colaborador_certificado_id
+        ).first()
+        if not registro:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certificado emitido não encontrado")
+        if registro.treinamento:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Este certificado emitido já possui um treinamento vinculado")
 
     novo_treinamento = models.Treinamento(**treinamento.model_dump())
     db.add(novo_treinamento)
     db.commit()
     db.refresh(novo_treinamento)
     return novo_treinamento
+
+
+def _historico_item(treinamento: models.Treinamento, tipo: str) -> schemas.TreinamentoHistoricoResponse:
+    registro = treinamento.colaborador_certificado
+    return schemas.TreinamentoHistoricoResponse(
+        id=treinamento.id,
+        colaborador_id=treinamento.colaborador_id,
+        certificado_id=treinamento.certificado_id,
+        colaborador_certificado_id=treinamento.colaborador_certificado_id,
+        data_emissao=treinamento.data_emissao,
+        criado_em=treinamento.criado_em,
+        nr_codigo=treinamento.certificado.nr_codigo,
+        nome_certificado=treinamento.certificado.nome,
+        tipo=tipo,
+        data_vencimento=registro.data_vencimento if registro else None,
+        url_certificado=registro.url_certificado if registro else None,
+    )
+
+
+# Histórico de treinamentos em ordem cronológica; o primeiro de cada colaborador + certificado é o inicial
+def listar_treinamentos_banco(db: Session, colaborador_id: Optional[int] = None, certificado_id: Optional[int] = None):
+    query = db.query(models.Treinamento)
+    if colaborador_id:
+        query = query.filter(models.Treinamento.colaborador_id == colaborador_id)
+    if certificado_id:
+        query = query.filter(models.Treinamento.certificado_id == certificado_id)
+    treinamentos = query.order_by(models.Treinamento.data_emissao, models.Treinamento.id).all()
+
+    vistos = set()
+    historico = []
+    for treinamento in treinamentos:
+        chave = (treinamento.colaborador_id, treinamento.certificado_id)
+        historico.append(_historico_item(treinamento, "reciclagem" if chave in vistos else "inicial"))
+        vistos.add(chave)
+    return historico
+
+
+def buscar_treinamento_por_id_banco(treinamento_id: int, db: Session):
+    treinamento = db.query(models.Treinamento).filter(models.Treinamento.id == treinamento_id).first()
+    if not treinamento:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Treinamento não encontrado")
+    anterior = db.query(models.Treinamento).filter(
+        models.Treinamento.colaborador_id == treinamento.colaborador_id,
+        models.Treinamento.certificado_id == treinamento.certificado_id,
+        (models.Treinamento.data_emissao < treinamento.data_emissao)
+        | ((models.Treinamento.data_emissao == treinamento.data_emissao) & (models.Treinamento.id < treinamento.id)),
+    ).first()
+    return _historico_item(treinamento, "reciclagem" if anterior else "inicial")
 
 
 #====================================Funcao EPI Obrigatorio====================================

@@ -1,6 +1,6 @@
 import type { HTMLAttributes, ReactNode } from 'react'
 
-export type BadgeVariant = 'success' | 'warning' | 'danger'
+export type BadgeVariant = 'success' | 'warning' | 'danger' | 'neutral'
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 	variant?: BadgeVariant
@@ -11,6 +11,7 @@ const variantClasses: Record<BadgeVariant, string> = {
 	success: 'bg-surface-success text-brand',
 	warning: 'bg-status-warning text-status-warning-text',
 	danger: 'bg-status-danger text-status-danger-text',
+	neutral: 'bg-surface-muted text-text-secondary',
 }
 
 function joinClasses(...classes: (string | undefined)[]) {

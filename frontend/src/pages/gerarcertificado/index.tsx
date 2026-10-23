@@ -134,10 +134,21 @@ export default function GenerateCertificatePage() {
 
 	const employee = data.colaboradores.find((item) => item.id === selectedEmployeeId) ?? null
 	const selectedTraining = trainings.find((item) => item.nr === selectedNr)
+	// agrupado por certificado, do treinamento mais recente para o inicial
 	const employeeRecords = useMemo(() => data.registros
 		.filter((record) => record.colaborador_id === selectedEmployeeId)
-		.sort((left, right) => (left.data_vencimento ?? '9999-12-31').localeCompare(right.data_vencimento ?? '9999-12-31')),
+		.sort((left, right) => (left.certificado?.nr_codigo ?? '').localeCompare(right.certificado?.nr_codigo ?? '')
+			|| right.data_conclusao.localeCompare(left.data_conclusao)),
 	[data.registros, selectedEmployeeId])
+	// só o último certificado de cada NR vale para a situação; os anteriores foram reciclados
+	const currentRecordIds = useMemo(() => {
+		const latest = new Map<number, EmployeeCertificate>()
+		for (const record of employeeRecords) {
+			const existing = latest.get(record.certificado_id)
+			if (!existing || record.data_conclusao > existing.data_conclusao) latest.set(record.certificado_id, record)
+		}
+		return new Set(Array.from(latest.values()).map((record) => record.id))
+	}, [employeeRecords])
 	const queuedCertificates = queue.map((item) => ({
 		...item,
 		training: trainings.find((training) => training.nr === item.nr),
@@ -168,16 +179,18 @@ export default function GenerateCertificatePage() {
 		setNotice('')
 		let generatedCount = 0
 		try {
+			const generated: string[] = []
 			for (const item of toGenerate) {
-				await gerarcertificadoService.gerarCertificado({
+				const response = await gerarcertificadoService.gerarCertificado({
 					colaborador_id: employee.id,
 					nr_codigo: item.nr,
 					data_conclusao: item.date,
 				})
+				generated.push(`${item.nr} (certificado nº ${response.id}, treinamento nº ${response.treinamento_id})`)
 				generatedCount += 1
 			}
 			setQueue([])
-			setNotice(`${generatedCount} certificado(s) gerado(s). Use o botão Baixar para obter o arquivo.`)
+			setNotice(`Gerado(s): ${generated.join('; ')}. Use o botão Baixar para obter o arquivo.`)
 			setConfirmed(false)
 		} catch (requestError) {
 			console.error('Erro ao gerar certificado:', requestError)
@@ -306,12 +319,14 @@ export default function GenerateCertificatePage() {
 							</div>}
 							<div className="divide-y divide-border">
 								{employeeRecords.map((record) => {
-									const status = dateStatus(record.data_vencimento)
+									const status: CertificateStatus = currentRecordIds.has(record.id)
+										? dateStatus(record.data_vencimento)
+										: { label: 'Reciclado', variant: 'neutral', icon: infoIcon }
 									return <div key={record.id} className="flex min-h-[78px] flex-wrap items-center gap-3 py-3.5 sm:gap-[14px]">
 										<span className="inline-flex size-11 shrink-0 items-center justify-center rounded-control bg-surface-muted"><img src={graduationIcon} alt="" width="24" height="24" /></span>
 										<div className="min-w-0 flex-1">
-											<p className="text-sm font-semibold text-brand-deep">{certificateName(record.certificado)}</p>
-											<p className="mt-1 text-xs text-text-secondary">Realizado em {formatDate(record.data_conclusao)} • {record.data_vencimento ? `Válido até ${formatDate(record.data_vencimento)}` : 'Sem vencimento definido'}</p>
+											<p className="text-sm font-semibold text-brand-deep">{certificateName(record.certificado)}{record.tipo && <span className="ml-2 text-xs font-normal text-text-secondary">{record.tipo === 'inicial' ? 'Treinamento inicial' : 'Reciclagem'}</span>}</p>
+											<p className="mt-1 text-xs text-text-secondary">Realizado em {formatDate(record.data_conclusao)} • {record.data_vencimento ? `Válido até ${formatDate(record.data_vencimento)}` : 'Sem vencimento definido'}{record.treinamento_id && ` • Treinamento nº ${record.treinamento_id}`}</p>
 										</div>
 										<Badge variant={status.variant}><img src={status.icon} alt="" width="14" height="14" />{status.label}</Badge>
 										{record.url_certificado && <Button type="button" variant="secondary" className="px-3" disabled={downloadingId === record.id} onClick={() => void downloadCertificate(record)} icon={<Download className="size-[18px]" />}>{downloadingId === record.id ? 'Baixando...' : 'Baixar'}</Button>}

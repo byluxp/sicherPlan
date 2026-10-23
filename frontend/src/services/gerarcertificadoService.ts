@@ -28,6 +28,16 @@ export interface EmployeeCertificate {
 	data_vencimento: string | null
 	url_certificado: string | null
 	certificado: CertificateType | null
+	treinamento_id: number | null
+	tipo: TrainingKind | null
+}
+
+export type TrainingKind = 'inicial' | 'reciclagem'
+
+interface TrainingHistoryRecord {
+	id: number
+	colaborador_certificado_id: number | null
+	tipo: TrainingKind
 }
 
 export interface CertificatePageData {
@@ -69,17 +79,21 @@ interface EmployeeCertificateRecord {
 
 export const gerarcertificadoService = {
 	listarDados: async (): Promise<CertificatePageData> => {
-		const [employeesResponse, certificatesResponse, employeeCertificatesResponse, functionsResponse, sectorsResponse] = await Promise.all([
+		const [employeesResponse, certificatesResponse, employeeCertificatesResponse, functionsResponse, sectorsResponse, trainingsResponse] = await Promise.all([
 			api.get<CollaboratorRecord[]>('/colaboradores/'),
 			api.get<CertificateType[]>('/certificados/'),
 			api.get<EmployeeCertificateRecord[]>('/colaborador-certificados/'),
 			api.get<NamedRecord[]>('/funcoes/'),
 			api.get<NamedRecord[]>('/setores/'),
+			api.get<TrainingHistoryRecord[]>('/treinamentos/'),
 		])
 
 		const functionNames = new Map(functionsResponse.data.map((item) => [item.id, item.nome]))
 		const sectorNames = new Map(sectorsResponse.data.map((item) => [item.id, item.nome]))
 		const certificatesById = new Map(certificatesResponse.data.map((item) => [item.id, item]))
+		const trainingsByRecord = new Map(trainingsResponse.data
+			.filter((item) => item.colaborador_certificado_id !== null)
+			.map((item) => [item.colaborador_certificado_id, item]))
 
 		return {
 			colaboradores: employeesResponse.data
@@ -93,12 +107,14 @@ export const gerarcertificadoService = {
 			registros: employeeCertificatesResponse.data.map((record) => ({
 				...record,
 				certificado: certificatesById.get(record.certificado_id) ?? null,
+				treinamento_id: trainingsByRecord.get(record.id)?.id ?? null,
+				tipo: trainingsByRecord.get(record.id)?.tipo ?? null,
 			})),
 		}
 	},
 
-	gerarCertificado: async (dados: CertificateGenerationInput): Promise<EmployeeCertificateRecord> => {
-		const response = await api.post<EmployeeCertificateRecord>('/colaborador-certificados/gerar', dados)
+	gerarCertificado: async (dados: CertificateGenerationInput): Promise<EmployeeCertificateRecord & { treinamento_id: number }> => {
+		const response = await api.post<EmployeeCertificateRecord & { treinamento_id: number }>('/colaborador-certificados/gerar', dados)
 		return response.data
 	},
 

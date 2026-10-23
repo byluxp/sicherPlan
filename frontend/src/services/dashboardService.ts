@@ -69,6 +69,7 @@ interface EmployeeCertificateRecord {
 	id: number
 	colaborador_id: number
 	certificado_id: number
+	data_conclusao: string
 	data_vencimento: string | null
 }
 
@@ -159,7 +160,15 @@ export async function carregarDashboard(): Promise<DashboardData> {
 		}
 	}
 
+	// após uma reciclagem, só o certificado mais recente de cada NR conta para o colaborador
+	const latestCertificates = new Map<string, EmployeeCertificateRecord>()
 	for (const item of employeeCertificatesResponse.data) {
+		const key = `${item.colaborador_id}-${item.certificado_id}`
+		const existing = latestCertificates.get(key)
+		if (!existing || item.data_conclusao > existing.data_conclusao) latestCertificates.set(key, item)
+	}
+
+	for (const item of latestCertificates.values()) {
 		const collaborator = collaboratorById.get(item.colaborador_id)
 		if (!collaborator) continue
 		if (!item.data_vencimento) {

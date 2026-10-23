@@ -1,6 +1,6 @@
 from typing import Optional
 from calendar import monthrange
-from datetime import date
+from datetime import date, timedelta
 import models, schemas
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -465,7 +465,12 @@ def gerar_certificado_documento_banco(dados: schemas.GerarCertificadoRequest, db
     return registro, treinamento, caminho_saida
 
 
-# Só permite nova emissão (reciclagem) quando o último certificado da mesma NR estiver vencido
+# mesma janela do "a vencer" do dashboard
+DIAS_ANTECEDENCIA_RECICLAGEM = 30
+
+
+# Reemissão (reciclagem) permitida para todas as NRs: com vencimento, a partir de 30 dias antes do último
+# certificado vencer; sem vencimento, a qualquer momento (ex.: regra do cliente exige novo treinamento)
 def _validar_nova_emissao(db: Session, colaborador_id: int, certificado: models.Certificado, dados: schemas.GerarCertificadoRequest):
     ultimo = db.query(models.ColaboradorCertificado).filter(
         models.ColaboradorCertificado.colaborador_id == colaborador_id,
@@ -473,16 +478,13 @@ def _validar_nova_emissao(db: Session, colaborador_id: int, certificado: models.
     ).order_by(models.ColaboradorCertificado.data_conclusao.desc()).first()
     if not ultimo:
         return
-    if ultimo.data_vencimento is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"A {dados.nr_codigo} já foi emitida para este colaborador e não possui vencimento",
-        )
-    if ultimo.data_vencimento >= date.today():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"A {dados.nr_codigo} deste colaborador está válida até {ultimo.data_vencimento:%d/%m/%Y}. A reciclagem só pode ser emitida após o vencimento",
-        )
+    if ultimo.data_vencimento is not None:
+        liberada_em = ultimo.data_vencimento - timedelta(days=DIAS_ANTECEDENCIA_RECICLAGEM)
+        if date.today() < liberada_em:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"A {dados.nr_codigo} deste colaborador está válida até {ultimo.data_vencimento:%d/%m/%Y}. A reciclagem será liberada a partir de {liberada_em:%d/%m/%Y}",
+            )
     if dados.data_conclusao <= ultimo.data_conclusao:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

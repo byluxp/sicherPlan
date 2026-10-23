@@ -244,8 +244,7 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate
 python -m pip install -r requirements.txt
-unset DATABASE_URL
-POSTGRES_PORT=5433 python -m uvicorn main:app --reload
+python -m uvicorn main:app --reload
 ```
 
 No PowerShell, use os comandos equivalentes:

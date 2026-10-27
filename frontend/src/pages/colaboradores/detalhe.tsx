@@ -4,10 +4,18 @@ import AppHeader from '../../components/header/app-header'
 import Badge, { type BadgeVariant } from '../../components/ui/badge'
 import Button from '../../components/ui/button'
 import Card from '../../components/ui/card'
-import { colaboradorService, type FichaColaborador, type FichaTreinamento } from '../../services/colaboradorService'
+import { colaboradorService, type FichaColaborador } from '../../services/colaboradorService'
 import { mensagemErroApi } from '../../services/funcaosetorService'
+import { precisaEmitir, ROTULO_SITUACAO, treinamentosExigidos, type SituacaoTreinamento } from '../../utils/treinamentosObrigatorios'
 
 type Situacao = { label: string; variant: BadgeVariant }
+
+const VARIANTE_SITUACAO: Record<SituacaoTreinamento, BadgeVariant> = {
+	pendente: 'warning',
+	vencido: 'danger',
+	a_vencer: 'warning',
+	valido: 'success',
+}
 
 const CONFORME: Situacao = { label: 'Conforme', variant: 'success' }
 const PENDENTE: Situacao = { label: 'Pendente', variant: 'warning' }
@@ -46,21 +54,6 @@ function situacaoDocumento(ficha: FichaColaborador, padrao: RegExp): Situacao {
 // registros assinados: conforme quando existe ao menos um e todos estão assinados
 function situacaoAssinatura(registros: { assinado: boolean | null }[]): Situacao {
 	return registros.length > 0 && registros.every((registro) => registro.assinado) ? CONFORME : PENDENTE
-}
-
-// mesma NR conta como o mesmo treinamento, mesmo se houver mais de um certificado dela no catálogo
-function chaveTreinamento(nrCodigo: string | null, certificadoId: number) {
-	return nrCodigo ?? `certificado-${certificadoId}`
-}
-
-function ultimoPorTreinamento(treinamentos: FichaTreinamento[]) {
-	const ultimos = new Map<string, FichaTreinamento>()
-	for (const treinamento of treinamentos) {
-		const chave = chaveTreinamento(treinamento.nr_codigo, treinamento.certificado_id)
-		const atual = ultimos.get(chave)
-		if (!atual || treinamento.data_emissao > atual.data_emissao) ultimos.set(chave, treinamento)
-	}
-	return ultimos
 }
 
 function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
@@ -102,16 +95,11 @@ export default function CollaboratorDetailPage() {
 
 	const asoAtual = ficha ? [...ficha.asos].sort((a, b) => b.data_emissao.localeCompare(a.data_emissao))[0] : undefined
 	// só os treinamentos exigidos pela função aparecem; os demais não têm relação com a atividade
-	const treinamentosAtuais = ficha ? ultimoPorTreinamento(ficha.treinamentos) : new Map<string, FichaTreinamento>()
-	const exigidos = (ficha?.treinamentosObrigatorios ?? []).map((obrigatorio) => {
-		const realizado = treinamentosAtuais.get(chaveTreinamento(obrigatorio.nr_codigo, obrigatorio.id))
-		return {
-			obrigatorio,
-			realizado,
-			situacao: realizado ? situacaoVencimento(realizado.data_vencimento) : { label: 'Pendente', variant: 'warning' as BadgeVariant },
-		}
-	})
-	const pendentes = exigidos.filter(({ situacao }) => situacao.label === 'Pendente' || situacao.label === 'Vencido').length
+	const exigidos = treinamentosExigidos(
+		ficha?.treinamentosObrigatorios ?? [],
+		(ficha?.treinamentos ?? []).map((treinamento) => ({ ...treinamento, data: treinamento.data_emissao })),
+	)
+	const pendentes = exigidos.filter(({ situacao }) => precisaEmitir(situacao)).length
 
 	return (
 		<div className="min-h-screen bg-surface-page font-sans text-text-primary">
@@ -169,7 +157,7 @@ export default function CollaboratorDetailPage() {
 												<Item
 													key={obrigatorio.id}
 													titulo={obrigatorio.nr_codigo ? `${obrigatorio.nr_codigo} • ${obrigatorio.nome}` : obrigatorio.nome}
-													situacao={situacao}
+													situacao={{ label: ROTULO_SITUACAO[situacao], variant: VARIANTE_SITUACAO[situacao] }}
 													detalhe={realizado ? textoValidade(realizado.data_vencimento) : 'Não realizado'}
 												/>
 											))}

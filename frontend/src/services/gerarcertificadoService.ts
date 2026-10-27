@@ -1,4 +1,5 @@
 import { api } from './api'
+import type { TreinamentoObrigatorio } from './funcaosetorService'
 
 export interface CertificateEmployee {
 	id: number
@@ -9,6 +10,8 @@ export interface CertificateEmployee {
 	ativo: boolean
 	funcao: string
 	setor: string
+	// treinamentos exigidos pela função do colaborador
+	treinamentos_obrigatorios: TreinamentoObrigatorio[]
 }
 
 export interface CertificateType {
@@ -83,12 +86,12 @@ export const gerarcertificadoService = {
 			api.get<CollaboratorRecord[]>('/colaboradores/'),
 			api.get<CertificateType[]>('/certificados/'),
 			api.get<EmployeeCertificateRecord[]>('/colaborador-certificados/'),
-			api.get<NamedRecord[]>('/funcoes/'),
+			api.get<(NamedRecord & { treinamentos_obrigatorios: TreinamentoObrigatorio[] })[]>('/funcoes/'),
 			api.get<NamedRecord[]>('/setores/'),
 			api.get<TrainingHistoryRecord[]>('/treinamentos/'),
 		])
 
-		const functionNames = new Map(functionsResponse.data.map((item) => [item.id, item.nome]))
+		const functionsById = new Map(functionsResponse.data.map((item) => [item.id, item]))
 		const sectorNames = new Map(sectorsResponse.data.map((item) => [item.id, item.nome]))
 		const certificatesById = new Map(certificatesResponse.data.map((item) => [item.id, item]))
 		const trainingsByRecord = new Map(trainingsResponse.data
@@ -100,7 +103,8 @@ export const gerarcertificadoService = {
 				.filter((employee) => employee.ativo)
 				.map((employee) => ({
 					...employee,
-					funcao: functionNames.get(employee.funcao_id) ?? 'Função não encontrada',
+					funcao: functionsById.get(employee.funcao_id)?.nome ?? 'Função não encontrada',
+					treinamentos_obrigatorios: functionsById.get(employee.funcao_id)?.treinamentos_obrigatorios ?? [],
 					setor: sectorNames.get(employee.setor_id) ?? 'Setor não encontrado',
 				})),
 			certificados: certificatesResponse.data,

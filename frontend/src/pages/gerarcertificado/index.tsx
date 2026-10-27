@@ -20,6 +20,7 @@ import statusCheckIcon from '../../assets/figma/certificados/status-check.svg'
 import statusClockIcon from '../../assets/figma/certificados/status-clock.svg'
 import statusExpiredIcon from '../../assets/figma/certificados/status-expired.svg'
 import { mensagemErroApi } from '../../services/funcaosetorService'
+import { ROTULO_SITUACAO, treinamentosExigidos } from '../../utils/treinamentosObrigatorios'
 import {
 	gerarcertificadoService,
 	type CertificatePageData,
@@ -149,6 +150,17 @@ export default function GenerateCertificatePage() {
 		}
 		return new Set(Array.from(latest.values()).map((record) => record.id))
 	}, [employeeRecords])
+	// treinamentos exigidos pela função que ainda não foram feitos, venceram ou vencem em até 30 dias
+	const pendingTrainings = useMemo(() => treinamentosExigidos(
+		employee?.treinamentos_obrigatorios ?? [],
+		employeeRecords.map((record) => ({
+			certificado_id: record.certificado_id,
+			nr_codigo: record.certificado?.nr_codigo ?? null,
+			data: record.data_conclusao,
+			data_vencimento: record.data_vencimento,
+		})),
+	).filter(({ situacao }) => situacao !== 'valido'), [employee, employeeRecords])
+	const pendingNrs = new Set(pendingTrainings.map(({ obrigatorio }) => obrigatorio.nr_codigo))
 	const queuedCertificates = queue.map((item) => ({
 		...item,
 		training: trainings.find((training) => training.nr === item.nr),
@@ -276,6 +288,25 @@ export default function GenerateCertificatePage() {
 								</div>
 								<p className="text-xs leading-[1.5] text-text-secondary">Dados do cadastro. Use Editar dados para alterá-los.</p>
 							</div>
+							{employee && pendingTrainings.length > 0 && (
+								<div role="status" className="flex flex-col gap-2 rounded-control border border-status-warning-text/30 bg-status-warning p-3 text-status-warning-text">
+									<p className="text-[13px] font-semibold">Treinamentos pendentes para a função {employee.funcao}</p>
+									<ul className="flex flex-col gap-1">
+										{pendingTrainings.map(({ obrigatorio, situacao }) => {
+											const name = obrigatorio.nr_codigo ?? obrigatorio.nome
+											const training = trainings.find((item) => item.nr === obrigatorio.nr_codigo && item.disponivel)
+											const label = <><span className="font-semibold">{name}</span> › {ROTULO_SITUACAO[situacao]}</>
+											return (
+												<li key={obrigatorio.id} className="text-xs">
+													{training
+														? <button type="button" className="text-left underline-offset-2 hover:underline" title={`Selecionar ${name}`} onClick={() => { setSelectedNr(training.nr); setConfirmed(false) }}>{label}</button>
+														: <span title={obrigatorio.nr_codigo ? 'Certificado desta NR ainda não é emitido pelo sistema' : undefined}>{label}</span>}
+												</li>
+											)
+										})}
+									</ul>
+								</div>
+							)}
 							<fieldset className="flex flex-col gap-2" disabled={isLoading}>
 								<legend className="mb-2 text-[13px] font-semibold text-text-primary">Tipo de treinamento</legend>
 								<div className="grid grid-cols-2 gap-1.5 rounded-control border border-border bg-surface-muted p-1.5 sm:grid-cols-4">
@@ -283,6 +314,7 @@ export default function GenerateCertificatePage() {
 										const isSelected = item.nr === selectedNr
 										return <button key={item.nr} type="button" aria-pressed={isSelected} disabled={!item.disponivel} title={item.disponivel ? undefined : 'Certificado ainda não disponível'} onClick={() => { setSelectedNr(item.nr); setConfirmed(false) }} className={`min-h-[38px] rounded-control px-2 text-[13px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 ${isSelected ? 'bg-brand text-brand-on-primary' : 'bg-surface-card text-brand hover:bg-surface-success'}`}>
 											{item.nr}
+											{pendingNrs.has(item.nr) && <span aria-label="pendente" title="Pendente para a função" className="ml-1 inline-block size-1.5 rounded-full bg-status-warning-text align-middle" />}
 										</button>
 									})}
 								</div>

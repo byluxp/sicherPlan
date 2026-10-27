@@ -1,8 +1,4 @@
 -- Vincula cada treinamento ao certificado emitido (colaborador_certificado).
--- Idempotente: pode ser executado mais de uma vez.
--- Executar: docker exec -i sicherplan-postgres psql -U sicherplan -d sicherplan < docs/db/migrations/001_treinamento_colaborador_certificado.sql
-
-BEGIN;
 
 ALTER TABLE treinamento
     ADD COLUMN IF NOT EXISTS colaborador_certificado_id integer;
@@ -36,4 +32,3 @@ SELECT cc.colaborador_id, cc.certificado_id, cc.id, cc.data_conclusao
 FROM colaborador_certificado cc
 WHERE NOT EXISTS (SELECT 1 FROM treinamento t WHERE t.colaborador_certificado_id = cc.id);
 
-COMMIT;

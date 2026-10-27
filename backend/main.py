@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from database import engine, Base
+from migracoes import aplicar_migracoes
 #banco de dados fictício para popular o banco de dados com dados iniciais
 from seed_data import seed_initial_data
 from routers import (
@@ -45,6 +46,8 @@ app.add_middleware(
 )
 
 Base.metadata.create_all(bind=engine)
+# ajustes em tabelas existentes (colunas novas etc.) que o create_all não faz
+aplicar_migracoes()
 seed_initial_data()
 
 

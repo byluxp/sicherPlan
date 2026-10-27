@@ -1,4 +1,5 @@
 import {api} from './api'
+import type { TreinamentoObrigatorio } from './funcaosetorService'
 
 export interface Colaborador {
     id: number;
@@ -75,6 +76,8 @@ export interface FichaColaborador {
     colaborador: Colaborador;
     setor: string;
     funcao: string;
+    // treinamentos exigidos pela função do colaborador
+    treinamentosObrigatorios: TreinamentoObrigatorio[];
     asos: FichaAso[];
     treinamentos: FichaTreinamento[];
     entregas: FichaEntregaEpi[];
@@ -88,17 +91,19 @@ export const colaboradorService = {
         const [colaborador, setores, funcoes, asos, treinamentos, entregas, documentos, ordensServico] = await Promise.all([
             api.get<Colaborador>(`/colaboradores/${id}`),
             api.get<{ id: number; nome: string }[]>('/setores/', { params: { apenas_ativos: false } }),
-            api.get<{ id: number; nome: string }[]>('/funcoes/', { params: { apenas_ativos: false } }),
+            api.get<{ id: number; nome: string; treinamentos_obrigatorios: TreinamentoObrigatorio[] }[]>('/funcoes/', { params: { apenas_ativos: false } }),
             api.get<FichaAso[]>('/asos/', { params }),
             api.get<FichaTreinamento[]>('/treinamentos/', { params }),
             api.get<FichaEntregaEpi[]>('/entregas-epi/', { params }),
             api.get<FichaDocumento[]>('/fichas-registro/', { params }),
             api.get<FichaOrdemServico[]>('/ordens-servico/', { params }),
         ]);
+        const funcao = funcoes.data.find((item) => item.id === colaborador.data.funcao_id);
         return {
             colaborador: colaborador.data,
             setor: setores.data.find((setor) => setor.id === colaborador.data.setor_id)?.nome ?? 'Setor não encontrado',
-            funcao: funcoes.data.find((funcao) => funcao.id === colaborador.data.funcao_id)?.nome ?? 'Função não encontrada',
+            funcao: funcao?.nome ?? 'Função não encontrada',
+            treinamentosObrigatorios: funcao?.treinamentos_obrigatorios ?? [],
             asos: asos.data,
             treinamentos: treinamentos.data,
             entregas: entregas.data,

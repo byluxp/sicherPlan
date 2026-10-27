@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Boxes, Building2, CalendarDays, Check, Factory, Pencil, Save, ShieldCheck, Wrench } from 'lucide-react'
+import { Boxes, Building2, CalendarDays, Check, Factory, Pencil, Plus, Save, ShieldCheck, Wrench, X } from 'lucide-react'
 import AppHeader from '../../components/header/app-header'
 import Button from '../../components/ui/button'
 import Card, {
@@ -22,6 +22,7 @@ import { colaboradorService, type Colaborador } from '../../services/colaborador
 import {
 	funcaosetorService,
 	mensagemErroApi,
+	nrsTreinamentoObrigatorio,
 	type Funcao,
 	type Setor,
 } from '../../services/funcaosetorService'
@@ -36,6 +37,11 @@ export default function FunctionsSectorsPage() {
 	const [editingSector, setEditingSector] = useState<Setor | null>(null)
 	const [functionName, setFunctionName] = useState('')
 	const [selectedSectorId, setSelectedSectorId] = useState<number | ''>('')
+	const [editingFunction, setEditingFunction] = useState<Funcao | null>(null)
+	const [selectedNrs, setSelectedNrs] = useState<string[]>([])
+	const [customTrainings, setCustomTrainings] = useState<string[]>([])
+	const [isAddingCustom, setIsAddingCustom] = useState(false)
+	const [customTrainingText, setCustomTrainingText] = useState('')
 	const [isLoading, setIsLoading] = useState(true)
 	const [isSavingSector, setIsSavingSector] = useState(false)
 	const [isSavingFunction, setIsSavingFunction] = useState(false)
@@ -110,11 +116,51 @@ export default function FunctionsSectorsPage() {
 		}
 	}
 
+	function resetFunctionForm() {
+		setEditingFunction(null)
+		setFunctionName('')
+		setSelectedNrs([])
+		setCustomTrainings([])
+		setIsAddingCustom(false)
+		setCustomTrainingText('')
+	}
+
+	function toggleNr(nr: string) {
+		setSelectedNrs((current) => current.includes(nr) ? current.filter((item) => item !== nr) : [...current, nr])
+	}
+
+	function addCustomTraining() {
+		const typed = customTrainingText.trim().replace(/\s+/g, ' ')
+		if (!typed) return
+		// "NR 10" digitado no campo livre marca a opção da lista em vez de duplicá-la; outras NRs viram "NR-20"
+		const nrCode = /^nr[\s-]*0*(\d{1,2})$/i.exec(typed)
+		const training = nrCode ? `NR-${nrCode[1].padStart(2, '0')}` : typed
+		if (nrsTreinamentoObrigatorio.includes(training)) {
+			setSelectedNrs((current) => current.includes(training) ? current : [...current, training])
+		} else if (!customTrainings.some((item) => item.toLocaleLowerCase('pt-BR') === training.toLocaleLowerCase('pt-BR'))) {
+			setCustomTrainings((current) => [...current, training])
+		}
+		setCustomTrainingText('')
+		setIsAddingCustom(false)
+	}
+
+	function startEditingFunction(job: Funcao) {
+		setEditingFunction(job)
+		setFunctionName(job.nome)
+		setSelectedSectorId(job.setor_id)
+		const codes = job.treinamentos_obrigatorios.map((training) => training.nr_codigo ?? training.nome)
+		setSelectedNrs(codes.filter((code) => nrsTreinamentoObrigatorio.includes(code)))
+		setCustomTrainings(codes.filter((code) => !nrsTreinamentoObrigatorio.includes(code)))
+		setIsAddingCustom(false)
+		setCustomTrainingText('')
+		setErrorMessage('')
+	}
+
 	async function handleFunctionSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault()
 		const name = functionName.trim()
 		if (!name || selectedSectorId === '') return
-		if (functions.some((job) => job.nome.toLocaleLowerCase('pt-BR') === name.toLocaleLowerCase('pt-BR'))) {
+		if (functions.some((job) => job.id !== editingFunction?.id && job.nome.toLocaleLowerCase('pt-BR') === name.toLocaleLowerCase('pt-BR'))) {
 			setErrorMessage('Já existe uma função cadastrada com esse nome.')
 			return
 		}
@@ -122,14 +168,21 @@ export default function FunctionsSectorsPage() {
 		setErrorMessage('')
 		setIsSavingFunction(true)
 		try {
-			const funcaoCriada = await funcaosetorService.criarFuncao({
+			const dados = {
 				nome: name,
 				setor_id: selectedSectorId,
-				descricao: null,
-				ativo: true,
-			})
-			setFunctions((current) => [...current, funcaoCriada])
-			setFunctionName('')
+				descricao: editingFunction?.descricao ?? null,
+				ativo: editingFunction?.ativo ?? true,
+				treinamentos_obrigatorios: [...selectedNrs, ...customTrainings],
+			}
+			if (editingFunction) {
+				const funcaoAtualizada = await funcaosetorService.atualizarFuncao(editingFunction.id, dados)
+				setFunctions((current) => current.map((job) => job.id === funcaoAtualizada.id ? funcaoAtualizada : job))
+			} else {
+				const funcaoCriada = await funcaosetorService.criarFuncao(dados)
+				setFunctions((current) => [...current, funcaoCriada])
+			}
+			resetFunctionForm()
 		} catch (error) {
 			setErrorMessage(mensagemErroApi(error, 'Não foi possível salvar a função.'))
 		} finally {
@@ -250,8 +303,8 @@ export default function FunctionsSectorsPage() {
 
 					<Card className="min-w-0 gap-6 p-5 sm:p-6">
 						<CardHeader>
-							<CardTitle>Cadastrar função</CardTitle>
-							<CardDescription>Cada função pertence a um setor previamente cadastrado.</CardDescription>
+							<CardTitle>{editingFunction ? 'Editar função' : 'Cadastrar função'}</CardTitle>
+							<CardDescription>Cada função pertence a um setor previamente cadastrado e define os treinamentos exigidos de quem a ocupa.</CardDescription>
 						</CardHeader>
 
 						<form className="flex w-full flex-col gap-4" onSubmit={handleFunctionSubmit}>
@@ -306,10 +359,83 @@ export default function FunctionsSectorsPage() {
 								})}
 							</div>
 
-							<div>
-											<Button type="submit" disabled={isLoading || isSavingFunction || sectors.length === 0} icon={<Save className="size-[18px]" />}>
-													{isSavingFunction ? 'Salvando...' : 'Salvar função'}
+							<fieldset className="flex flex-col gap-2" disabled={isSavingFunction}>
+								<legend className="mb-2 text-[13px] font-semibold text-text-primary">Treinamentos obrigatórios</legend>
+								<div className="flex flex-wrap gap-2">
+									{nrsTreinamentoObrigatorio.map((nr) => {
+										const isSelected = selectedNrs.includes(nr)
+										return (
+											<button
+												key={nr}
+												type="button"
+												aria-pressed={isSelected}
+												onClick={() => toggleNr(nr)}
+												className={`inline-flex min-h-9 items-center gap-1.5 rounded-control border px-3 py-2 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${isSelected ? 'border-brand bg-surface-success text-brand-deep' : 'border-border bg-surface-input text-text-primary hover:bg-surface-muted'}`}
+											>
+												{isSelected && <Check aria-hidden="true" className="size-3.5" />}
+												{nr}
+											</button>
+										)
+									})}
+									{customTrainings.map((training) => (
+										<span key={training} className="inline-flex min-h-9 items-center gap-1.5 rounded-control border px-3 py-2 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand border-brand bg-surface-success text-brand-deep">
+											<Check aria-hidden="true" className="size-3.5" />
+											{training}
+											<button
+												type="button"
+												aria-label={`Remover ${training}`}
+												title="Remover"
+												onClick={() => setCustomTrainings((current) => current.filter((item) => item !== training))}
+												className="-mr-1 inline-flex size-5 items-center justify-center rounded-full hover:bg-surface-muted"
+											>
+												<X aria-hidden="true" className="size-3.5" />
+											</button>
+										</span>
+									))}
+									<button
+										type="button"
+										aria-label="Adicionar outro treinamento"
+										title="Adicionar outro treinamento"
+										aria-expanded={isAddingCustom}
+										onClick={() => setIsAddingCustom((current) => !current)}
+										className="inline-flex min-h-9 items-center gap-1.5 rounded-control border px-3 py-2 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand border-dashed border-brand bg-surface-input text-brand hover:bg-surface-muted"
+									>
+										<Plus aria-hidden="true" className="size-3.5" />
+									</button>
+								</div>
+								{isAddingCustom && (
+									<div className="flex flex-wrap items-center gap-2">
+										<Input
+											aria-label="Nome do treinamento"
+											autoFocus
+											value={customTrainingText}
+											onChange={(event) => setCustomTrainingText(event.target.value)}
+											onKeyDown={(event) => {
+												// Enter adiciona o treinamento em vez de enviar o formulário da função
+												if (event.key === 'Enter') { event.preventDefault(); addCustomTraining() }
+												if (event.key === 'Escape') { setIsAddingCustom(false); setCustomTrainingText('') }
+											}}
+											placeholder="Ex.: Primeiros socorros, NR 20"
+											maxLength={120}
+											containerClassName="min-w-[220px] flex-1"
+										/>
+										<Button type="button" variant="secondary" disabled={!customTrainingText.trim()} onClick={addCustomTraining} icon={<Plus className="size-[18px]" />}>
+											Adicionar
+										</Button>
+									</div>
+								)}
+								<p className="text-xs text-text-secondary">Selecione os treinamentos exigidos para esta função. Use o + para incluir outro treinamento.</p>
+							</fieldset>
+
+							<div className="flex flex-wrap gap-3">
+								<Button type="submit" disabled={isLoading || isSavingFunction || sectors.length === 0} icon={<Save className="size-[18px]" />}>
+									{isSavingFunction ? 'Salvando...' : editingFunction ? 'Atualizar função' : 'Salvar função'}
 								</Button>
+								{editingFunction && (
+									<Button type="button" variant="secondary" onClick={resetFunctionForm} disabled={isSavingFunction}>
+										Cancelar
+									</Button>
+								)}
 							</div>
 						</form>
 
@@ -325,6 +451,8 @@ export default function FunctionsSectorsPage() {
 										<TableRow className="border-0">
 											<TableHead>Função</TableHead>
 											<TableHead className="w-[155px]">Setor vinculado</TableHead>
+											<TableHead>Treinamentos obrigatórios</TableHead>
+											<TableHead className="w-[56px] text-right">Ações</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
@@ -332,6 +460,25 @@ export default function FunctionsSectorsPage() {
 															<TableRow key={job.id} className="h-[53px]">
 																<TableCell>{job.nome}</TableCell>
 																<TableCell className="text-xs text-text-secondary">{sectors.find((sector) => sector.id === job.setor_id)?.nome ?? 'Setor não encontrado'}</TableCell>
+																<TableCell className="text-xs">
+																	{job.treinamentos_obrigatorios.length > 0
+																		? job.treinamentos_obrigatorios.map((training) => training.nr_codigo ?? training.nome).join(', ')
+																		: <span className="text-text-secondary">Nenhum</span>}
+																</TableCell>
+																<TableCell>
+																	<div className="flex justify-end">
+																		<button
+																			type="button"
+																			title={`Editar ${job.nome}`}
+																			aria-label={`Editar ${job.nome}`}
+																			onClick={() => startEditingFunction(job)}
+																			disabled={isSavingFunction}
+																			className="inline-flex size-9 items-center justify-center rounded-control text-brand hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand"
+																		>
+																			<Pencil aria-hidden="true" className="size-4" />
+																		</button>
+																	</div>
+																</TableCell>
 											</TableRow>
 										))}
 									</TableBody>

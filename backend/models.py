@@ -1,7 +1,15 @@
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Table, func
 from sqlalchemy.orm import relationship
 
 from database import Base
+
+# Treinamentos (certificados do catálogo) exigidos por cada função
+funcao_treinamento_obrigatorio = Table(
+    "funcao_treinamento_obrigatorio",
+    Base.metadata,
+    Column("funcao_id", Integer, ForeignKey("funcao.id"), primary_key=True),
+    Column("certificado_id", Integer, ForeignKey("certificado.id"), primary_key=True),
+)
 
 
 class Colaborador(Base):
@@ -60,6 +68,7 @@ class Funcao(Base):
     colaboradores = relationship("Colaborador", back_populates="funcao")
     epis_obrigatorios = relationship("FuncaoEpiObrigatorio", back_populates="funcao")
     historicos_funcao = relationship("HistoricoFuncao", back_populates="funcao")
+    treinamentos_obrigatorios = relationship("Certificado", secondary=funcao_treinamento_obrigatorio, order_by="Certificado.nr_codigo")
 
 
 class Epi(Base):

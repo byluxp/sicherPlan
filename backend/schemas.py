@@ -27,11 +27,22 @@ class FuncaoBase(BaseModel):
     ativo: Optional[bool] = True
 
 class FuncaoCreate(FuncaoBase):
-    pass
+    # códigos de NR (ex.: "NR-35") ou nomes de outros treinamentos; None mantém os atuais na edição
+    treinamentos_obrigatorios: Optional[list[str]] = None
+
+class TreinamentoObrigatorioResponse(BaseModel):
+    id: int
+    nome: str
+    nr_codigo: Optional[str] = None
+    validade_meses: Optional[int] = None
+
+    class Config:
+        from_attributes = True
 
 class FuncaoResponse(FuncaoBase):
     id: int
     criado_em: datetime
+    treinamentos_obrigatorios: list[TreinamentoObrigatorioResponse] = []
 
     class Config:
         from_attributes = True

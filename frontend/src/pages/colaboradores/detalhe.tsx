@@ -9,15 +9,6 @@ import { mensagemErroApi } from '../../services/funcaosetorService'
 
 type Situacao = { label: string; variant: BadgeVariant }
 
-// NRs exibidas sempre na ficha; outras NRs que o colaborador tiver aparecem em seguida
-const TREINAMENTOS_PADRAO = [
-	{ nr: 'NR-06', nome: 'EPI' },
-	{ nr: 'NR-10', nome: 'Eletricidade' },
-	{ nr: 'NR-12', nome: 'Máquinas' },
-	{ nr: 'NR-18', nome: 'Canteiro' },
-	{ nr: 'NR-35', nome: 'Trabalho em altura' },
-]
-
 const CONFORME: Situacao = { label: 'Conforme', variant: 'success' }
 const PENDENTE: Situacao = { label: 'Pendente', variant: 'warning' }
 
@@ -57,10 +48,15 @@ function situacaoAssinatura(registros: { assinado: boolean | null }[]): Situacao
 	return registros.length > 0 && registros.every((registro) => registro.assinado) ? CONFORME : PENDENTE
 }
 
-function ultimoPorNr(treinamentos: FichaTreinamento[]) {
+// mesma NR conta como o mesmo treinamento, mesmo se houver mais de um certificado dela no catálogo
+function chaveTreinamento(nrCodigo: string | null, certificadoId: number) {
+	return nrCodigo ?? `certificado-${certificadoId}`
+}
+
+function ultimoPorTreinamento(treinamentos: FichaTreinamento[]) {
 	const ultimos = new Map<string, FichaTreinamento>()
 	for (const treinamento of treinamentos) {
-		const chave = treinamento.nr_codigo ?? treinamento.nome_certificado
+		const chave = chaveTreinamento(treinamento.nr_codigo, treinamento.certificado_id)
 		const atual = ultimos.get(chave)
 		if (!atual || treinamento.data_emissao > atual.data_emissao) ultimos.set(chave, treinamento)
 	}
@@ -105,8 +101,17 @@ export default function CollaboratorDetailPage() {
 	}, [colaboradorId])
 
 	const asoAtual = ficha ? [...ficha.asos].sort((a, b) => b.data_emissao.localeCompare(a.data_emissao))[0] : undefined
-	const treinamentosAtuais = ficha ? ultimoPorNr(ficha.treinamentos) : new Map<string, FichaTreinamento>()
-	const outrosTreinamentos = Array.from(treinamentosAtuais.entries()).filter(([nr]) => !TREINAMENTOS_PADRAO.some((padrao) => padrao.nr === nr))
+	// só os treinamentos exigidos pela função aparecem; os demais não têm relação com a atividade
+	const treinamentosAtuais = ficha ? ultimoPorTreinamento(ficha.treinamentos) : new Map<string, FichaTreinamento>()
+	const exigidos = (ficha?.treinamentosObrigatorios ?? []).map((obrigatorio) => {
+		const realizado = treinamentosAtuais.get(chaveTreinamento(obrigatorio.nr_codigo, obrigatorio.id))
+		return {
+			obrigatorio,
+			realizado,
+			situacao: realizado ? situacaoVencimento(realizado.data_vencimento) : { label: 'Pendente', variant: 'warning' as BadgeVariant },
+		}
+	})
+	const pendentes = exigidos.filter(({ situacao }) => situacao.label === 'Pendente' || situacao.label === 'Vencido').length
 
 	return (
 		<div className="min-h-screen bg-surface-page font-sans text-text-primary">
@@ -148,17 +153,29 @@ export default function CollaboratorDetailPage() {
 							</Secao>
 
 							<Secao titulo="Treinamentos">
-								<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
-									{TREINAMENTOS_PADRAO.map(({ nr, nome }) => {
-										const treinamento = treinamentosAtuais.get(nr)
-										return treinamento
-											? <Item key={nr} titulo={`${nr} • ${nome}`} situacao={situacaoVencimento(treinamento.data_vencimento)} detalhe={textoValidade(treinamento.data_vencimento)} />
-											: <Item key={nr} titulo={`${nr} • ${nome}`} situacao={{ label: 'Não realizado', variant: 'neutral' }} />
-									})}
-									{outrosTreinamentos.map(([nr, treinamento]) => (
-										<Item key={nr} titulo={`${nr} • ${treinamento.nome_certificado}`} situacao={situacaoVencimento(treinamento.data_vencimento)} detalhe={textoValidade(treinamento.data_vencimento)} />
-									))}
-								</div>
+								{exigidos.length === 0 ? (
+									<p className="text-sm text-text-secondary">
+										Nenhum treinamento obrigatório cadastrado para a função {ficha.funcao}. Defina os treinamentos exigidos em Funções e setores.
+									</p>
+								) : (
+									<>
+										<p className={`text-sm ${pendentes > 0 ? 'font-semibold text-status-warning-text' : 'text-text-secondary'}`}>
+											{pendentes > 0
+												? `${pendentes} de ${exigidos.length} treinamentos exigidos pela função estão pendentes ou vencidos.`
+												: `Todos os ${exigidos.length} treinamentos exigidos pela função estão em dia.`}
+										</p>
+										<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
+											{exigidos.map(({ obrigatorio, realizado, situacao }) => (
+												<Item
+													key={obrigatorio.id}
+													titulo={obrigatorio.nr_codigo ? `${obrigatorio.nr_codigo} • ${obrigatorio.nome}` : obrigatorio.nome}
+													situacao={situacao}
+													detalhe={realizado ? textoValidade(realizado.data_vencimento) : 'Não realizado'}
+												/>
+											))}
+										</div>
+									</>
+								)}
 							</Secao>
 
 							<Secao titulo="Documentação">

@@ -1,6 +1,7 @@
 from typing import Optional
 from calendar import monthrange
 from datetime import date, timedelta
+import re
 import models, schemas
 from fastapi import HTTPException, status
 from sqlalchemy import func
@@ -167,6 +168,54 @@ def desativar_setor_por_id_banco(setor_id: int, db: Session):
 
 #====================================Funcoes====================================
 
+# NRs oferecidas no cadastro de função: nome do treinamento e validade da reciclagem (meses), quando a NR fixa
+CATALOGO_NR = {
+    "NR-06": ("Equipamento de proteção individual", None),
+    "NR-10": ("Segurança em instalações e serviços em eletricidade", 24),
+    "NR-11": ("Transporte, movimentação, armazenagem e manuseio de materiais", None),
+    "NR-12": ("Segurança no trabalho em máquinas e equipamentos", None),
+    "NR-18": ("Condições e meio ambiente de trabalho na indústria da construção", None),
+    "NR-33": ("Segurança e saúde nos trabalhos em espaços confinados", 12),
+    "NR-35": ("Trabalho em altura", 24),
+}
+
+
+# Converte "NR-35"/"NR 35"/"nr35" ou o nome de outro treinamento no certificado do catálogo, criando-o se não existir
+def _certificado_do_treinamento(texto: str, db: Session) -> models.Certificado:
+    texto = " ".join(texto.split())
+    codigo = re.fullmatch(r"(?i)nr[\s-]*0*(\d{1,2})", texto)
+    if codigo:
+        nr_codigo = f"NR-{int(codigo.group(1)):02d}"
+        certificado = db.query(models.Certificado).filter(models.Certificado.nr_codigo == nr_codigo).order_by(models.Certificado.id).first()
+        if certificado:
+            return certificado
+        nome, validade_meses = CATALOGO_NR.get(nr_codigo, (f"Treinamento {nr_codigo}", None))
+        certificado = models.Certificado(nome=nome, nr_codigo=nr_codigo, validade_meses=validade_meses)
+    else:
+        certificado = db.query(models.Certificado).filter(
+            models.Certificado.nr_codigo.is_(None),
+            func.lower(models.Certificado.nome) == texto.lower(),
+        ).first()
+        if certificado:
+            return certificado
+        certificado = models.Certificado(nome=texto)
+    db.add(certificado)
+    db.flush()
+    return certificado
+
+
+def _treinamentos_obrigatorios(treinamentos: list[str], db: Session) -> list[models.Certificado]:
+    certificados = {}
+    for texto in treinamentos:
+        if not texto.strip():
+            continue
+        if len(texto) > 120:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O nome do treinamento deve ter até 120 caracteres.")
+        certificado = _certificado_do_treinamento(texto, db)
+        certificados[certificado.id] = certificado
+    return list(certificados.values())
+
+
 # Criar uma nova função
 def criar_funcao_banco(funcao: schemas.FuncaoCreate, db: Session):
     setor = db.query(models.Setor).filter(models.Setor.id == funcao.setor_id).first()
@@ -174,7 +223,8 @@ def criar_funcao_banco(funcao: schemas.FuncaoCreate, db: Session):
     if not setor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor nao encontrado")
     
-    nova_funcao = models.Funcao(**funcao.model_dump())
+    nova_funcao = models.Funcao(**funcao.model_dump(exclude={"treinamentos_obrigatorios"}))
+    nova_funcao.treinamentos_obrigatorios = _treinamentos_obrigatorios(funcao.treinamentos_obrigatorios or [], db)
     db.add(nova_funcao)
     db.commit()
     db.refresh(nova_funcao)
@@ -205,8 +255,10 @@ def atualizar_funcao_por_id_banco(funcao_id: int, dados_novos: schemas.FuncaoCre
     if not funcao_banco:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Função não encontrada")
 
-    for chave, valor in dados_novos.model_dump().items():
+    for chave, valor in dados_novos.model_dump(exclude={"treinamentos_obrigatorios"}).items():
         setattr(funcao_banco, chave, valor)
+    if dados_novos.treinamentos_obrigatorios is not None:
+        funcao_banco.treinamentos_obrigatorios = _treinamentos_obrigatorios(dados_novos.treinamentos_obrigatorios, db)
 
     db.commit()
     db.refresh(funcao_banco)

@@ -21,6 +21,16 @@ export interface SetorCreate {
 	ativo: boolean
 }
 
+export interface TreinamentoObrigatorio {
+	id: number
+
+	nome: string
+
+	nr_codigo: string | null
+
+	validade_meses: number | null
+}
+
 export interface Funcao {
 	id: number
 
@@ -33,6 +43,8 @@ export interface Funcao {
 	ativo: boolean
 
 	criado_em: string
+
+	treinamentos_obrigatorios: TreinamentoObrigatorio[]
 }
 
 export interface FuncaoCreate {
@@ -43,7 +55,13 @@ export interface FuncaoCreate {
 	descricao: string | null
 
 	ativo: boolean
+
+	// códigos de NR (ex.: "NR-35") ou nomes de outros treinamentos
+	treinamentos_obrigatorios: string[]
 }
+
+// NRs oferecidas como opção no cadastro de função
+export const nrsTreinamentoObrigatorio = ['NR-06', 'NR-10', 'NR-11', 'NR-12', 'NR-18', 'NR-33', 'NR-35']
 
 export function mensagemErroApi(error: unknown, fallback: string): string {
 	if (axios.isAxiosError<{ detail?: unknown }>(error)) {
@@ -77,6 +95,11 @@ export const funcaosetorService = {
 
 	criarFuncao: async (dados: FuncaoCreate): Promise<Funcao> => {
 		const response = await api.post('/funcoes/', dados)
+		return response.data
+	},
+
+	atualizarFuncao: async (id: number, dados: FuncaoCreate): Promise<Funcao> => {
+		const response = await api.put(`/funcoes/${id}`, dados)
 		return response.data
 	},
 }

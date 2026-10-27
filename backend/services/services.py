@@ -3,8 +3,10 @@ from calendar import monthrange
 from datetime import date, timedelta
 import models, schemas
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from services import documentos as documentos_service
+from services import leitura_ca
 
 
 #====================================Colaboradores====================================
@@ -256,6 +258,16 @@ def atualizar_epi_por_id_banco(epi_id: int, dados_novos: schemas.EpiCreate, db: 
     db.commit()
     db.refresh(epi_banco)
     return epi_banco
+
+
+# Lê o PDF do CA e devolve os dados para conferência (não grava no banco)
+def importar_ca_epi(conteudo: bytes, db: Session):
+    dados = leitura_ca.ler_certificado_aprovacao(conteudo)
+    # compara só os dígitos, pois o CA pode ter sido cadastrado com ponto (ex.: 41.370)
+    dados["epi_existente"] = db.query(models.Epi).filter(
+        func.regexp_replace(models.Epi.ca_numero, r"\D", "", "g") == dados["ca_numero"]
+    ).first()
+    return dados
 
 
 # Soft Delete (Desativa) EPI por id

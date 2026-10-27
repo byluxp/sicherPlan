@@ -5,6 +5,7 @@ import {
 	CircleAlert,
 	Clock3,
 	Ear,
+	FileCheck,
 	FileUp,
 	Footprints,
 	Glasses,
@@ -13,10 +14,9 @@ import {
 	Search,
 	Shield,
 	Upload,
+	X,
 	type LucideIcon,
 } from 'lucide-react'
-import Papa from 'papaparse'
-import readXlsxFile from 'read-excel-file/browser'
 import AppHeader from '../../components/header/app-header'
 import Badge, { type BadgeVariant } from '../../components/ui/badge'
 import Button from '../../components/ui/button'
@@ -36,7 +36,14 @@ import {
 	TableHeader,
 	TableRow,
 } from '../../components/ui/table'
-import { epiService, grupoProtecaoOptions, type Epi, type EpiCreate } from '../../services/epiService'
+import { mensagemErroApi } from '../../services/funcaosetorService'
+import {
+	epiService,
+	grupoProtecaoOptions,
+	type Epi,
+	type EpiCreate,
+	type EpiImportacaoCA,
+} from '../../services/epiService'
 
 
 
@@ -77,74 +84,6 @@ function formatDate(date: string) {
 	return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(`${date}T00:00:00.000Z`))
 }
 
-function normalizeHeader(value: unknown) {
-	return String(value ?? '')
-		.trim()
-		.toLocaleLowerCase('pt-BR')
-		.normalize('NFD')
-		.replace(/[\u0300-\u036f]/g, '')
-}
-
-function toIsoDate(value: unknown) {
-	if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10)
-	const text = String(value ?? '').trim()
-	const brDate = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-	if (brDate) return `${brDate[3]}-${brDate[2].padStart(2, '0')}-${brDate[1].padStart(2, '0')}`
-	if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
-	return ''
-}
-
-function parseCsv(file: File) {
-	return new Promise<unknown[][]>((resolve, reject) => {
-		Papa.parse<unknown[]>(file, {
-			skipEmptyLines: 'greedy',
-			complete: (result) => resolve(result.data),
-			error: reject,
-		})
-	})
-}
-
-async function readImportFile(file: File) {
-	if (file.name.toLocaleLowerCase('pt-BR').endsWith('.csv')) return parseCsv(file)
-	const [firstSheet] = await readXlsxFile(file)
-	return firstSheet?.data ?? []
-}
-
-function rowsToEpis(rows: unknown[][]): EpiCreate[] {
-	if (rows.length < 2) throw new Error('A planilha não contém linhas para importar.')
-
-	const headers = rows[0].map(normalizeHeader)
-	const nameIndex = headers.findIndex((header) => header.includes('nome') || header.includes('equipamento'))
-	const typeIndex = headers.findIndex((header) => header.includes('tipo'))
-	const expiryIndex = headers.findIndex((header) => header.includes('validade') || header.includes('vencimento'))
-	const caIndex = headers.findIndex((header) => header === 'ca' || header.includes('numero do ca') || header.includes('codigo ca') || header.includes('ca numero'))
-	if (nameIndex < 0 || typeIndex < 0 || expiryIndex < 0 || caIndex < 0) {
-		throw new Error('Inclua colunas de nome do EPI, tipo, validade do CA e número do CA.')
-	}
-
-	const imported = rows.slice(1).flatMap((row, index) => {
-		const nome = String(row[nameIndex] ?? '').trim()
-		const grupo_protecao = String(row[typeIndex] ?? '').trim()
-		const data_validade_ca = toIsoDate(row[expiryIndex])
-		const ca_numero = String(row[caIndex] ?? '').trim()
-		if (!nome && !grupo_protecao && !data_validade_ca && !ca_numero) return []
-		if (!nome || !grupo_protecao || !data_validade_ca || !ca_numero) {
-			throw new Error(`Preencha nome, tipo, validade e CA na linha ${index + 2}.`)
-		}
-		return [{
-			nome,
-			grupo_protecao,
-			ca_numero,
-			data_validade_ca,
-			url_pdf_ca: null,
-			durabilidade_dias: 365,
-			ativo: true,
-		}]
-	})
-	if (imported.length === 0) throw new Error('Nenhuma linha válida encontrada para importar.')
-	return imported
-}
-
 export default function EpiPage() {
 	const [epis, setEpis] = useState<Epi[]>([])
 	const [form, setForm] = useState(emptyForm)
@@ -155,6 +94,8 @@ export default function EpiPage() {
 	const [isLoading, setIsLoading] = useState(true)
 	const [isSaving, setIsSaving] = useState(false)
 	const [isImporting, setIsImporting] = useState(false)
+	// dados extras do CA importado, mostrados para conferência até o EPI ser salvo
+	const [importedCA, setImportedCA] = useState<EpiImportacaoCA | null>(null)
 	const fileInputRef = useRef<HTMLInputElement>(null)
 
 	useEffect(() => {
@@ -195,65 +136,87 @@ export default function EpiPage() {
 
 		setIsSaving(true)
 		setFormMessage('')
+		const existing = importedCA?.epi_existente
 		try {
-			const created = await epiService.criar({ ...form, nome, ca_numero })
-			setEpis((current) => [...current, created])
+			if (existing) {
+				// CA já cadastrado: atualiza o EPI existente (ex.: renovação da validade) em vez de duplicar
+				const updated = await epiService.atualizar(existing.id, {
+					...form,
+					nome,
+					ca_numero,
+					durabilidade_dias: existing.durabilidade_dias,
+					url_pdf_ca: existing.url_pdf_ca,
+					ativo: true,
+				})
+				setEpis((current) => current.some((epi) => epi.id === updated.id)
+					? current.map((epi) => epi.id === updated.id ? updated : epi)
+					: [...current, updated])
+				setFormMessage('EPI atualizado com os dados do CA.')
+			} else {
+				const created = await epiService.criar({ ...form, nome, ca_numero })
+				setEpis((current) => [...current, created])
+				setFormMessage('EPI cadastrado com sucesso.')
+			}
 			setForm(emptyForm)
+			setImportedCA(null)
+			setImportMessage('')
 			setLoadError('')
-			setFormMessage('EPI cadastrado com sucesso.')
-		} catch {
-			setFormMessage('Não foi possível cadastrar o EPI. Verifique os dados e tente novamente.')
+		} catch (error) {
+			setFormMessage(mensagemErroApi(error, 'Não foi possível salvar o EPI. Verifique os dados e tente novamente.'))
 		} finally {
 			setIsSaving(false)
 		}
 	}
 
+	function cancelImport() {
+		setForm(emptyForm)
+		setImportedCA(null)
+		setImportMessage('')
+		setFormMessage('')
+	}
+
 	async function handleImport(event: ChangeEvent<HTMLInputElement>) {
 		const file = event.target.files?.[0]
+		event.target.value = ''
 		if (!file) return
 		setImportMessage('')
+		setFormMessage('')
 		if (file.size > 10 * 1024 * 1024) {
 			setImportMessage('O arquivo ultrapassa o limite de 10 MB.')
-			event.target.value = ''
 			return
 		}
-		if (!/\.(pdf)$/i.test(file.name)) {
+		if (!/\.pdf$/i.test(file.name)) {
 			setImportMessage('Selecione um arquivo PDF.')
-			event.target.value = ''
 			return
 		}
 
 		setIsImporting(true)
 		try {
-			const rows = await readImportFile(file)
-			const imported = rowsToEpis(rows)
-			const created: Epi[] = []
-			let failedCount = 0
-			for (const epi of imported) {
-				try {
-					created.push(await epiService.criar(epi))
-				} catch {
-					failedCount += 1
-				}
-			}
-			if (created.length > 0) {
-				setEpis((current) => [...current, ...created])
-				setLoadError('')
-			}
-			if (failedCount === 0) {
-				setImportMessage(`${created.length} ${created.length === 1 ? 'CA importado' : 'CAs importados'} com sucesso.`)
-			} else if (created.length === 0) {
-				setImportMessage(`Não foi possível importar nenhum certificado de aprovação. ${failedCount} falha(s).`)
-			} else {
-				setImportMessage(`${created.length} Certificado(s) importado(s); ${failedCount} falha(s).`)
-			}
+			const imported = await epiService.importarCA(file)
+			// preenche o formulário para conferência; o EPI só é gravado ao clicar em salvar
+			setForm({
+				...emptyForm,
+				nome: imported.nome,
+				ca_numero: imported.ca_numero,
+				grupo_protecao: imported.grupo_protecao ?? '',
+				data_validade_ca: imported.data_validade_ca,
+			})
+			setImportedCA(imported)
 		} catch (error) {
-			setImportMessage(error instanceof Error ? error.message : 'Não foi possível ler o arquivo.')
+			setImportedCA(null)
+			setImportMessage(mensagemErroApi(error, 'Não foi possível ler o PDF do CA.'))
 		} finally {
 			setIsImporting(false)
-			event.target.value = ''
 		}
 	}
+
+	const importWarnings = importedCA ? [
+		importedCA.situacao && !/^V[ÁA]LIDO$/i.test(importedCA.situacao)
+			? `O MTE informa a situação deste CA como ${importedCA.situacao}. EPI sem CA válido não pode ser fornecido (NR-06).`
+			: null,
+		getStatus(importedCA.data_validade_ca) === 'expired' ? 'A validade do CA já expirou. Não é possível salvar um EPI com CA vencido.' : null,
+		!importedCA.grupo_protecao ? 'Não foi possível identificar o tipo de proteção. Selecione o tipo manualmente.' : null,
+	].filter((warning): warning is string => warning !== null) : []
 
 	return (
 		<div className="min-h-screen bg-surface-page font-sans text-text-primary">
@@ -291,6 +254,28 @@ export default function EpiPage() {
 						</CardHeader>
 
 						<form className="flex w-full flex-col gap-4" onSubmit={handleSave}>
+							{importedCA && (
+								<div role="status" className="flex flex-col gap-2 rounded-control border border-brand bg-surface-success p-3 text-xs leading-[1.5] text-brand-deep">
+									<p className="flex items-center gap-1.5 text-[13px] font-semibold">
+										<FileCheck aria-hidden="true" className="size-4 shrink-0" />
+										CA {importedCA.ca_numero} lido do PDF. Confira os dados e clique em {importedCA.epi_existente ? 'Atualizar EPI' : 'Salvar EPI'}.
+									</p>
+									{importedCA.fabricante && <p><span className="font-semibold">Fabricante:</span> {importedCA.fabricante}</p>}
+									{importedCA.situacao && <p><span className="font-semibold">Situação no MTE:</span> {importedCA.situacao}</p>}
+									{importedCA.aprovado_para && <p><span className="font-semibold">Aprovado para:</span> {importedCA.aprovado_para}</p>}
+									{importedCA.epi_existente && (
+										<p className="text-status-warning-text">
+											Este CA já está cadastrado como “{importedCA.epi_existente.nome}” (validade {formatDate(importedCA.epi_existente.data_validade_ca)}). Ao salvar, o EPI existente será atualizado.
+										</p>
+									)}
+									{importWarnings.map((warning) => (
+										<p key={warning} className="flex items-start gap-1.5 font-medium text-status-danger-text">
+											<CircleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{warning}
+										</p>
+									))}
+								</div>
+							)}
+
 							<div className="flex flex-col gap-2">
 								<label htmlFor="epi-name" className="text-[13px] font-semibold text-text-primary">Nome do EPI</label>
 								<Input
@@ -319,7 +304,9 @@ export default function EpiPage() {
 									id="epi-type"
 									value={form.grupo_protecao}
 									onChange={(event) => setForm((current) => ({ ...current, grupo_protecao: event.target.value }))}
+									required
 								>
+									{!form.grupo_protecao && <option value="" disabled>Selecione o tipo de proteção</option>}
 									{grupoProtecaoOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
 								</Select>
 							</div>
@@ -337,10 +324,15 @@ export default function EpiPage() {
 								<p className="text-xs text-text-secondary">Data de validade do Certificado de Aprovação.</p>
 							</div>
 
-							<div>
+							<div className="flex flex-wrap gap-3">
 								<Button type="submit" disabled={isSaving} icon={<Check className="size-[18px]" />}>
-									{isSaving ? 'Salvando...' : 'Salvar EPI'}
+									{isSaving ? 'Salvando...' : importedCA?.epi_existente ? 'Atualizar EPI' : 'Salvar EPI'}
 								</Button>
+								{importedCA && (
+									<Button type="button" variant="secondary" disabled={isSaving} onClick={cancelImport} icon={<X className="size-[18px]" />}>
+										Cancelar importação
+									</Button>
+								)}
 							</div>
 							{formMessage && <p role="status" className="text-xs font-medium text-brand">{formMessage}</p>}
 						</form>
@@ -355,7 +347,7 @@ export default function EpiPage() {
 								ref={fileInputRef}
 								id="epi-import"
 								type="file"
-								accept=".csv,.xlsx"
+								accept=".pdf,application/pdf"
 								className="sr-only"
 								onChange={handleImport}
 							/>
@@ -366,11 +358,11 @@ export default function EpiPage() {
 								onClick={() => fileInputRef.current?.click()}
 								icon={<FileUp className="size-[18px]" />}
 							>
-								{isImporting ? 'Importando...' : 'Importar arquivo'}
+								{isImporting ? 'Lendo PDF...' : 'Importar PDF do CA'}
 							</Button>
-							<p className="text-xs text-text-secondary"> PDF • até 10 MB</p>
-							<p className="text-xs leading-[1.5] text-text-secondary">Importe o Certificado de Aprovação do MTE.</p>
-							{importMessage && <p role="status" className="text-xs font-medium text-brand">{importMessage}</p>}
+							<p className="text-xs text-text-secondary">PDF • até 10 MB</p>
+							<p className="text-xs leading-[1.5] text-text-secondary">Importe o Certificado de Aprovação baixado do site do MTE. Os dados preenchem o formulário para conferência.</p>
+							{importMessage && <p role="alert" className="text-xs font-medium text-status-danger-text">{importMessage}</p>}
 						</div>
 					</Card>
 

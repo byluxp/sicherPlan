@@ -23,7 +23,28 @@ export interface EpiCreate {
     url_pdf_ca: string | null;
 }
 
+// Dados lidos do PDF do CA pelo backend, para conferência antes de salvar
+export interface EpiImportacaoCA {
+    nome: string;
+    ca_numero: string;
+    grupo_protecao: string | null;
+    data_validade_ca: string;
+    situacao: string | null;
+    aprovado_para: string | null;
+    fabricante: string | null;
+    epi_existente: Epi | null;
+}
+
 export const epiService = {
+    importarCA: async (arquivo: File): Promise<EpiImportacaoCA> => {
+        const dados = new FormData();
+        dados.append('arquivo', arquivo);
+        const response = await api.post('/epis/importar-ca', dados, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    },
+
     listarTodos: async(): Promise<Epi[]> => {
         const response = await api.get('/epis/');
         return response.data;

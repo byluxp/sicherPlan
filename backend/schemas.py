@@ -87,6 +87,17 @@ class EpiResponse(EpiBase):
 
     class Config:
         from_attributes = True
+
+# Dados lidos do PDF do CA, devolvidos para conferência antes de salvar
+class EpiImportacaoCAResponse(BaseModel):
+    nome: str
+    ca_numero: str
+    grupo_protecao: Optional[str] = None
+    data_validade_ca: date
+    situacao: Optional[str] = None
+    aprovado_para: Optional[str] = None
+    fabricante: Optional[str] = None
+    epi_existente: Optional[EpiResponse] = None
         
 #-------------------Obrigatorio-------------------
 class FuncaoEpiObrigatorioBase(BaseModel):

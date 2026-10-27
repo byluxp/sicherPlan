@@ -6,22 +6,28 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from services import documentos as documentos_service
-from services import leitura_ca
+from services import leitura_ca, leitura_identificacao
 
 
 #====================================Colaboradores====================================
 
+# Setor e função são obrigatórios e a função deve pertencer ao setor escolhido
+def _validar_setor_funcao(setor_id: int, funcao_id: int, db: Session):
+    setor = db.query(models.Setor).filter(models.Setor.id == setor_id).first()
+    funcao = db.query(models.Funcao).filter(models.Funcao.id == funcao_id).first()
+    if not setor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Selecione um setor cadastrado.")
+    if not funcao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Selecione uma função cadastrada.")
+    if funcao.setor_id != setor.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A função {funcao.nome} não pertence ao setor {setor.nome}.")
+
+
 # Criar um novo colaborador
 def criar_colaborador_banco(colaborador: schemas.ColaboradorCreate, db: Session):
-    setor = db.query(models.Setor).filter(models.Setor.id == colaborador.setor_id).first()
-    funcao = db.query(models.Funcao).filter(models.Funcao.id == colaborador.funcao_id).first()
+    _validar_setor_funcao(colaborador.setor_id, colaborador.funcao_id, db)
     # Verificação de CPF duplicado
     cpf_existente = db.query(models.Colaborador).filter(models.Colaborador.cpf == colaborador.cpf).first()
-    
-    if not setor:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor nao encontrado")
-    if not funcao:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcao nao encontrada")
     if cpf_existente:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CPF já cadastrado no sistema.")
     
@@ -55,13 +61,23 @@ def atualizar_colaborador_por_id_banco(colaborador_id: int, dados_novos: schemas
     colaborador_banco = db.query(models.Colaborador).filter(models.Colaborador.id == colaborador_id).first()
     if not colaborador_banco:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador não encontrado")
-    
+    _validar_setor_funcao(dados_novos.setor_id, dados_novos.funcao_id, db)
+
     for chave, valor in dados_novos.model_dump().items():
         setattr(colaborador_banco, chave, valor)
     
     db.commit()
     db.refresh(colaborador_banco)
     return colaborador_banco
+
+# Lê o documento de identificação e devolve os dados para conferência (não grava no banco)
+def importar_documento_colaborador(conteudo: bytes, db: Session):
+    dados = leitura_identificacao.ler_documento_identificacao(conteudo)
+    dados["colaborador_existente"] = None
+    if dados["cpf"]:
+        dados["colaborador_existente"] = db.query(models.Colaborador).filter(models.Colaborador.cpf == dados["cpf"]).first()
+    return dados
+
 
 # Soft Delete (Desativa) colaborador por id
 def desativar_colaborador_por_id_banco(colaborador_id: int, db: Session):

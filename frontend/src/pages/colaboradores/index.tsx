@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { CalendarDays, Pencil, Save, Search, ShieldCheck, Trash2, X } from 'lucide-react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { CalendarDays, CircleAlert, FileCheck, FileUp, Pencil, Save, Search, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
 import AppHeader from '../../components/header/app-header'
 import Button from '../../components/ui/button'
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -7,7 +7,13 @@ import Input from '../../components/ui/input'
 import Select from '../../components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { api } from '../../services/api'
-import { colaboradorService, type Colaborador, type ColaboradorCreate } from '../../services/colaboradorService'
+import {
+	colaboradorService,
+	type Colaborador,
+	type ColaboradorCreate,
+	type ColaboradorImportacaoDocumento,
+} from '../../services/colaboradorService'
+import { mensagemErroApi } from '../../services/funcaosetorService'
 
 type Setor = { id: number; nome: string }
 type Funcao = { id: number; nome: string; setor_id: number }
@@ -59,6 +65,11 @@ export default function CollaboratorsPage() {
 	const [saving, setSaving] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [notice, setNotice] = useState<string | null>(null)
+	const [isImporting, setIsImporting] = useState(false)
+	const [importError, setImportError] = useState('')
+	// dados do documento importado, mostrados para conferência até o colaborador ser salvo
+	const [importedDocument, setImportedDocument] = useState<ColaboradorImportacaoDocumento | null>(null)
+	const fileInputRef = useRef<HTMLInputElement>(null)
 
 	useEffect(() => {
 		document.title = 'Colaboradores | sicherPlan'
@@ -96,13 +107,54 @@ export default function CollaboratorsPage() {
 	function limparFormulario() {
 		setForm(emptyForm)
 		setEditingId(null)
+		setImportedDocument(null)
+		setImportError('')
+	}
+
+	async function handleImport(event: ChangeEvent<HTMLInputElement>) {
+		const file = event.target.files?.[0]
+		event.target.value = ''
+		if (!file) return
+		setImportError('')
+		setError(null)
+		setNotice(null)
+		if (file.size > 10 * 1024 * 1024) {
+			setImportError('O arquivo ultrapassa o limite de 10 MB.')
+			return
+		}
+		if (!/\.(pdf|png|jpe?g)$/i.test(file.name)) {
+			setImportError('Selecione um arquivo PDF, PNG ou JPG.')
+			return
+		}
+
+		setIsImporting(true)
+		try {
+			const imported = await colaboradorService.importarDocumento(file)
+			// preenche só os dados pessoais; setor, função e admissão continuam a cargo de quem cadastra
+			setForm((current) => ({
+				...current,
+				nome: imported.nome ?? current.nome,
+				cpf: imported.cpf ? formatCpf(imported.cpf) : current.cpf,
+				data_nascimento: imported.data_nascimento ?? current.data_nascimento,
+			}))
+			setImportedDocument(imported)
+		} catch (requestError) {
+			setImportedDocument(null)
+			setImportError(mensagemErroApi(requestError, 'Não foi possível ler o documento.'))
+		} finally {
+			setIsImporting(false)
+		}
 	}
 
 	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault()
-		setSaving(true)
 		setError(null)
 		setNotice(null)
+		if (!form.setor_id || !form.funcao_id) {
+			setError('Selecione o setor e a função do colaborador para salvar.')
+			return
+		}
+		setSaving(true)
 		const dados: ColaboradorCreate = {
 			nome: form.nome.trim(),
 			cpf: form.cpf,
@@ -126,7 +178,7 @@ export default function CollaboratorsPage() {
 			await carregarDados()
 		} catch (requestError) {
 			console.error('Erro ao salvar colaborador:', requestError)
-			setError('Não foi possível salvar. Verifique o CPF, o setor e a função e tente novamente.')
+			setError(mensagemErroApi(requestError, 'Não foi possível salvar. Verifique o CPF, o setor e a função e tente novamente.'))
 		} finally {
 			setSaving(false)
 		}
@@ -135,6 +187,8 @@ export default function CollaboratorsPage() {
 	function iniciarEdicao(colaborador: Colaborador) {
 		setEditingId(colaborador.id)
 		setForm(toFormState(colaborador))
+		setImportedDocument(null)
+		setImportError('')
 		setError(null)
 		setNotice(null)
 	}
@@ -187,6 +241,30 @@ export default function CollaboratorsPage() {
 							<CardTitle>{editingId === null ? 'Cadastrar colaborador' : 'Editar colaborador'}</CardTitle>
 						</CardHeader>
 						<form className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
+							{importedDocument && (
+								<div role="status" className="flex flex-col gap-2 rounded-control border border-brand bg-surface-success p-3 text-xs leading-[1.5] text-brand-deep">
+									<p className="flex items-center gap-1.5 text-[13px] font-semibold">
+										<FileCheck aria-hidden="true" className="size-4 shrink-0" />
+										Dados lidos do documento ({importedDocument.tipo_documento}). Confira, selecione setor e função e clique em Salvar colaborador.
+									</p>
+									{importedDocument.campos_nao_encontrados.length > 0 && (
+										<p className="flex items-start gap-1.5 font-medium text-status-warning-text">
+											<CircleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+											Não encontrado no documento: {importedDocument.campos_nao_encontrados.join(', ')}. Preencha manualmente.
+										</p>
+									)}
+									{importedDocument.colaborador_existente && (
+										<p className="flex flex-wrap items-center gap-2 font-medium text-status-danger-text">
+											<CircleAlert aria-hidden="true" className="size-3.5 shrink-0" />
+											Este CPF já está cadastrado para {importedDocument.colaborador_existente.nome}.
+											<button type="button" className="underline" onClick={() => iniciarEdicao(importedDocument.colaborador_existente!)}>
+												Abrir cadastro existente
+											</button>
+										</p>
+									)}
+								</div>
+							)}
+
 							<div className="flex flex-col gap-2">
 								<label htmlFor="collaborator-name" className="text-[13px] font-semibold text-text-primary">Nome completo</label>
 								<Input id="collaborator-name" name="nome" autoComplete="name" placeholder="Ex.: João da Silva" value={form.nome} onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))} required />
@@ -206,14 +284,14 @@ export default function CollaboratorsPage() {
 								</div>
 							</div>
 							<div className="flex flex-col gap-2">
-								<label htmlFor="collaborator-sector" className="text-[13px] font-semibold text-text-primary">Setor</label>
+								<label htmlFor="collaborator-sector" className="text-[13px] font-semibold text-text-primary">Setor <span aria-hidden="true" className="text-status-danger-text">*</span></label>
 								<Select id="collaborator-sector" value={form.setor_id} onChange={(event) => setForm((current) => ({ ...current, setor_id: event.target.value, funcao_id: '' }))} required>
 									<option value="" disabled>Selecione um setor</option>
 									{setores.map((setor) => <option key={setor.id} value={setor.id}>{setor.nome}</option>)}
 								</Select>
 							</div>
 							<div className="flex flex-col gap-2">
-								<label htmlFor="collaborator-role" className="text-[13px] font-semibold text-text-primary">Função</label>
+								<label htmlFor="collaborator-role" className="text-[13px] font-semibold text-text-primary">Função <span aria-hidden="true" className="text-status-danger-text">*</span></label>
 								<Select id="collaborator-role" value={form.funcao_id} onChange={(event) => setForm((current) => ({ ...current, funcao_id: event.target.value }))} required disabled={!form.setor_id}>
 									<option value="" disabled>Selecione uma função</option>
 									{funcoesDoSetor.map((funcao) => <option key={funcao.id} value={funcao.id}>{funcao.nome}</option>)}
@@ -230,6 +308,37 @@ export default function CollaboratorsPage() {
 								</div>
 							</div>
 						</form>
+
+						{editingId === null && (
+							<>
+								<div className="flex w-full items-center gap-3 text-xs text-text-secondary" aria-hidden="true">
+									<span className="h-px flex-1 bg-border" />ou<span className="h-px flex-1 bg-border" />
+								</div>
+								<div className="flex w-full flex-col items-center gap-3 rounded-control border border-dashed border-border bg-surface-input p-5 text-center sm:p-6">
+									<Upload aria-hidden="true" className="size-7 text-brand" />
+									<input
+										ref={fileInputRef}
+										id="collaborator-import"
+										type="file"
+										accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+										className="sr-only"
+										onChange={handleImport}
+									/>
+									<Button
+										type="button"
+										variant="secondary"
+										disabled={isImporting}
+										onClick={() => fileInputRef.current?.click()}
+										icon={<FileUp className="size-[18px]" />}
+									>
+										{isImporting ? 'Lendo documento...' : 'Importar documento de identificação'}
+									</Button>
+									<p className="text-xs text-text-secondary">PDF, PNG ou JPG • até 10 MB</p>
+									<p className="text-xs leading-[1.5] text-text-secondary">Envie o RG ou a CNH do colaborador. Nome, CPF e data de nascimento preenchem o formulário para conferência.</p>
+									{importError && <p role="alert" className="text-xs font-medium text-status-danger-text">{importError}</p>}
+								</div>
+							</>
+						)}
 					</Card>
 
 					<Card className="min-w-0 gap-6 p-5 sm:p-6">

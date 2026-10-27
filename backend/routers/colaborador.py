@@ -1,11 +1,24 @@
 from typing import Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from database import get_db
 import schemas
 from services import services
 
 router = APIRouter(prefix="/colaboradores", tags=["Colaboradores"])
+
+TAMANHO_MAXIMO_DOCUMENTO = 10 * 1024 * 1024
+
+
+# Lê o documento de identificação (PDF, PNG ou JPG) e devolve os dados para conferência (não salva)
+@router.post("/importar-documento", response_model=schemas.ColaboradorImportacaoDocumentoResponse)
+async def importar_documento(arquivo: UploadFile = File(...), db: Session = Depends(get_db)):
+    conteudo = await arquivo.read(TAMANHO_MAXIMO_DOCUMENTO + 1)
+    if len(conteudo) > TAMANHO_MAXIMO_DOCUMENTO:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="O arquivo ultrapassa o limite de 10 MB.")
+    # o OCR leva alguns segundos; roda fora do loop para não travar as outras requisições
+    return await run_in_threadpool(services.importar_documento_colaborador, conteudo, db)
 
 # Adicionar um novo colaborador
 @router.post("/", response_model=schemas.ColaboradorResponse)

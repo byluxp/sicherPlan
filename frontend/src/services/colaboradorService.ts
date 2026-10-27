@@ -25,7 +25,26 @@ export interface ColaboradorCreate {
     ativo: boolean;
 }
 
+// Dados lidos do documento de identificação pelo backend, para conferência antes de salvar
+export interface ColaboradorImportacaoDocumento {
+    tipo_documento: string;
+    nome: string | null;
+    cpf: string | null;
+    data_nascimento: string | null;
+    campos_nao_encontrados: string[];
+    colaborador_existente: Colaborador | null;
+}
+
 export const colaboradorService = {
+    importarDocumento: async (arquivo: File): Promise<ColaboradorImportacaoDocumento> => {
+        const dados = new FormData();
+        dados.append('arquivo', arquivo);
+        const response = await api.post('/colaboradores/importar-documento', dados, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    },
+
     listarTodos: async(): Promise<Colaborador[]> => {
         const response = await api.get('/colaboradores/');
         return response.data;

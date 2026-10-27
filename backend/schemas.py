@@ -67,7 +67,16 @@ class ColaboradorResponse(ColaboradorBase):
 
     class Config:
         from_attributes = True
-        
+
+# Dados lidos do documento de identificação, devolvidos para conferência antes de salvar
+class ColaboradorImportacaoDocumentoResponse(BaseModel):
+    tipo_documento: str
+    nome: Optional[str] = None
+    cpf: Optional[str] = None
+    data_nascimento: Optional[date] = None
+    campos_nao_encontrados: list[str]
+    colaborador_existente: Optional[ColaboradorResponse] = None
+
 #-------------------EPI-------------------
 class EpiBase(BaseModel):
     nome: str

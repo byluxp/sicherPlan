@@ -247,6 +247,14 @@ export default function CollaboratorsPage() {
 										<FileCheck aria-hidden="true" className="size-4 shrink-0" />
 										Dados lidos do documento ({importedDocument.tipo_documento}). Confira, selecione setor e função e clique em Salvar colaborador.
 									</p>
+									<p className="text-text-secondary">
+										{importedDocument.metodo_leitura === 'ia' ? 'Leitura feita por IA (Gemini).' : 'Leitura feita por OCR local.'}
+									</p>
+									{importedDocument.avisos.map((aviso) => (
+										<p key={aviso} className="flex items-start gap-1.5 font-medium text-status-warning-text">
+											<CircleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{aviso}
+										</p>
+									))}
 									{importedDocument.campos_nao_encontrados.length > 0 && (
 										<p className="flex items-start gap-1.5 font-medium text-status-warning-text">
 											<CircleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />

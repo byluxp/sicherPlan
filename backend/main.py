@@ -5,6 +5,8 @@ Comandos para rodar o projeto:
 3. uvicorn main:app --reload
 """
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -28,6 +30,10 @@ from routers import (
 )
 
 app = FastAPI(title="SicherPlan API")
+
+# mostra no terminal os logs dos serviços (ex.: tokens gastos em cada leitura por IA)
+logging.basicConfig(format="%(levelname)s:     %(name)s - %(message)s")
+logging.getLogger("services").setLevel(logging.INFO)
 
 # Permite a conexão do Frontend
 app.add_middleware(

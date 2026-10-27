@@ -32,6 +32,8 @@ export interface ColaboradorImportacaoDocumento {
     cpf: string | null;
     data_nascimento: string | null;
     campos_nao_encontrados: string[];
+    metodo_leitura: 'ia' | 'ocr';
+    avisos: string[];
     colaborador_existente: Colaborador | null;
 }
 

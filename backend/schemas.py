@@ -75,6 +75,8 @@ class ColaboradorImportacaoDocumentoResponse(BaseModel):
     cpf: Optional[str] = None
     data_nascimento: Optional[date] = None
     campos_nao_encontrados: list[str]
+    metodo_leitura: Literal["ia", "ocr"]
+    avisos: list[str] = []
     colaborador_existente: Optional[ColaboradorResponse] = None
 
 #-------------------EPI-------------------

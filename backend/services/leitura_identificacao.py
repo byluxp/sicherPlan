@@ -1,12 +1,14 @@
-"""Leitura de documento de identificação (RG, CNH) em PDF, PNG ou JPG.
+"""Leitura de documento de identificação (RG, CIN, CNH) em PDF, PNG ou JPG.
 
-PDF com texto é lido diretamente; PDF digitalizado e imagens passam por OCR local
-(Tesseract), sem enviar o documento para serviços externos. Os campos são extraídos
-por regras: o CPF é validado pelo dígito verificador e a data de nascimento é a data
-mais antiga plausível do documento.
+A leitura local vem primeiro, para não gastar tokens: PDF com texto é lido diretamente;
+PDF digitalizado e imagens passam por OCR (Tesseract). Só se faltar algum campo, e com
+GEMINI_API_KEY configurada, o documento vai para a IA (services/ia_documentos.py), que lida
+com foto girada, letra pequena e fundo poluído.
+Nos dois casos o CPF é validado pelo dígito verificador e a data de nascimento pela idade.
 """
 
 import io
+import logging
 import os
 import re
 import unicodedata
@@ -18,7 +20,10 @@ import pytesseract
 from fastapi import HTTPException, status
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from services import ia_documentos
 from services.leitura_ca import extrair_texto_pdf
+
+logger = logging.getLogger(__name__)
 
 LARGURA_MINIMA_OCR = 2000
 DPI_PDF_DIGITALIZADO = 300
@@ -216,10 +221,55 @@ def _extrair_campos(texto: str) -> dict:
     return dados
 
 
-def ler_documento_identificacao(conteudo: bytes) -> dict:
+def _mime_type(conteudo: bytes) -> str:
     if _tipo_arquivo(conteudo) == "pdf":
-        # PDF: tenta primeiro a camada de texto. Se faltar algum campo, roda o OCR na página
-        # renderizada: PDFs como a CNH-e têm texto só no cabeçalho e os dados dentro de imagens.
+        return "application/pdf"
+    return "image/png" if conteudo.startswith(b"\x89PNG") else "image/jpeg"
+
+
+def _idade(valor: date) -> int:
+    hoje = date.today()
+    return hoje.year - valor.year - ((hoje.month, hoje.day) < (valor.month, valor.day))
+
+
+def _ler_com_ia(conteudo: bytes) -> dict:
+    lido = ia_documentos.ler_identificacao_com_ia(conteudo, _mime_type(conteudo))
+    avisos = []
+
+    # a IA também erra: CPF e data passam pela mesma validação do OCR antes de ir para a tela
+    cpf = re.sub(r"\D", "", lido.cpf or "") or None
+    if cpf and not cpf_valido(cpf):
+        avisos.append("O CPF lido não passou na validação do dígito verificador. Digite-o manualmente.")
+        cpf = None
+
+    data_nascimento = None
+    if lido.data_nascimento:
+        try:
+            data_nascimento = date.fromisoformat(lido.data_nascimento)
+        except ValueError:
+            pass
+        if data_nascimento and not 14 <= _idade(data_nascimento) <= 100:
+            avisos.append("A data de nascimento lida não é plausível. Confira e digite-a manualmente.")
+            data_nascimento = None
+
+    nome = " ".join((lido.nome or "").split()).upper() or None
+    tipos = {"RG": "RG", "CIN": "Carteira de Identidade Nacional", "CNH": "CNH"}
+    dados = {
+        "tipo_documento": tipos.get(lido.tipo_documento, "Não identificado"),
+        "nome": nome if lido.documento_legivel else None,
+        "cpf": cpf if lido.documento_legivel else None,
+        "data_nascimento": data_nascimento if lido.documento_legivel else None,
+        "metodo_leitura": "ia",
+        "avisos": avisos,
+    }
+    dados["campos_nao_encontrados"] = [rotulo for campo, rotulo in ROTULOS_CAMPOS.items() if not dados[campo]]
+    return dados
+
+
+def _ler_com_ocr(conteudo: bytes) -> dict:
+    if _tipo_arquivo(conteudo) == "pdf":
+        # PDF: tenta primeiro a camada de texto. Se faltar algum campo, roda o OCR nas imagens:
+        # PDFs como a CNH-e têm texto só no cabeçalho e os dados dentro de imagens.
         texto = extrair_texto_pdf(conteudo)
         dados = _extrair_campos(texto)
         if dados["campos_nao_encontrados"]:
@@ -228,15 +278,47 @@ def ler_documento_identificacao(conteudo: bytes) -> dict:
     else:
         texto = _ocr_imagem(conteudo)
         dados = _extrair_campos(texto)
+    dados["metodo_leitura"] = "ocr"
+    dados["avisos"] = []
+    return dados
 
-    if not texto.strip():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Não foi possível ler texto no documento. Envie uma imagem mais nítida, sem reflexo e bem enquadrada.",
-        )
+
+def ler_documento_identificacao(conteudo: bytes) -> dict:
+    _tipo_arquivo(conteudo)  # recusa arquivo que não é PDF, PNG ou JPG antes de qualquer leitura
+
+    # OCR local primeiro (não gasta tokens); a IA só é chamada se ele não achar todos os campos
+    try:
+        dados = _ler_com_ocr(conteudo)
+    except HTTPException as erro:
+        # Tesseract não instalado: com IA configurada, ela assume a leitura
+        if erro.status_code != status.HTTP_503_SERVICE_UNAVAILABLE or not ia_documentos.ia_configurada():
+            raise
+        dados = None
+
+    if (dados is None or dados["campos_nao_encontrados"]) and ia_documentos.ia_configurada():
+        try:
+            dados_ia = _ler_com_ia(conteudo)
+            # campo que a IA não leu, mas o OCR sim, é aproveitado do OCR
+            if dados:
+                for campo, rotulo in ROTULOS_CAMPOS.items():
+                    if not dados_ia[campo] and dados[campo]:
+                        dados_ia[campo] = dados[campo]
+                        dados_ia["avisos"] = [aviso for aviso in dados_ia["avisos"] if rotulo.lower() not in aviso.lower()]
+                dados_ia["campos_nao_encontrados"] = [rotulo for campo, rotulo in ROTULOS_CAMPOS.items() if not dados_ia[campo]]
+            dados = dados_ia
+        except Exception:
+            # falha de rede, cota ou resposta inválida: fica com o resultado do OCR em vez de travar o cadastro
+            logger.exception("Falha na leitura do documento com IA; mantido o resultado do OCR local")
+            if dados is None:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Leitura indisponível no momento. Tente novamente ou preencha os dados manualmente.",
+                )
+            dados["avisos"].append("A leitura por IA não respondeu; os campos em branco precisam ser preenchidos manualmente.")
+
     if len(dados["campos_nao_encontrados"]) == len(ROTULOS_CAMPOS):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Nenhum dado de identificação encontrado. Confira se é um RG ou CNH legível e bem enquadrado.",
+            detail="Nenhum dado de identificação encontrado. Confira se é um RG, CIN ou CNH legível e bem enquadrado.",
         )
     return dados

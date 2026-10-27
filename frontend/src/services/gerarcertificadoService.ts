@@ -8,6 +8,8 @@ export interface CertificateEmployee {
 	funcao_id: number
 	setor_id: number
 	ativo: boolean
+	// false (inapto) impede a emissão do certificado de NR-35
+	apto_trabalho_altura: boolean | null
 	funcao: string
 	setor: string
 	// treinamentos exigidos pela função do colaborador
@@ -64,6 +66,7 @@ interface CollaboratorRecord {
 	funcao_id: number
 	setor_id: number
 	ativo: boolean
+	apto_trabalho_altura: boolean | null
 }
 
 interface NamedRecord {

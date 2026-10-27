@@ -134,7 +134,10 @@ export default function GenerateCertificatePage() {
 	}, [])
 
 	const employee = data.colaboradores.find((item) => item.id === selectedEmployeeId) ?? null
+	// inapto para trabalho em altura não pode receber o certificado de NR-35
+	const isBlocked = (nr: NrCodigo) => nr === 'NR-35' && employee?.apto_trabalho_altura === false
 	const selectedTraining = trainings.find((item) => item.nr === selectedNr)
+	const canIssue = Boolean(selectedTraining?.disponivel) && !isBlocked(selectedNr)
 	// agrupado por certificado, do treinamento mais recente para o inicial
 	const employeeRecords = useMemo(() => data.registros
 		.filter((record) => record.colaborador_id === selectedEmployeeId)
@@ -175,7 +178,7 @@ export default function GenerateCertificatePage() {
 	}
 
 	function queueSelectedCertificate() {
-		if (!selectedTraining?.disponivel || !trainingDate) return
+		if (!selectedTraining || !canIssue || !trainingDate) return
 		setQueue((current) => current.some((item) => item.nr === selectedTraining.nr)
 			? current
 			: [...current, { nr: selectedTraining.nr, date: trainingDate }])
@@ -184,7 +187,7 @@ export default function GenerateCertificatePage() {
 	}
 
 	async function generateCertificates() {
-		if (!employee || !selectedTraining?.disponivel || !confirmed || !trainingDate) return
+		if (!employee || !selectedTraining || !canIssue || !confirmed || !trainingDate) return
 		const toGenerate = queue.length > 0 ? queue : [{ nr: selectedTraining.nr, date: trainingDate }]
 		setIsSaving(true)
 		setError('')
@@ -294,8 +297,8 @@ export default function GenerateCertificatePage() {
 									<ul className="flex flex-col gap-1">
 										{pendingTrainings.map(({ obrigatorio, situacao }) => {
 											const name = obrigatorio.nr_codigo ?? obrigatorio.nome
-											const training = trainings.find((item) => item.nr === obrigatorio.nr_codigo && item.disponivel)
-											const label = <><span className="font-semibold">{name}</span> › {ROTULO_SITUACAO[situacao]}</>
+											const training = trainings.find((item) => item.nr === obrigatorio.nr_codigo && item.disponivel && !isBlocked(item.nr))
+											const label = <><span className="font-semibold">{name}</span> › {ROTULO_SITUACAO[situacao]}{obrigatorio.nr_codigo === 'NR-35' && isBlocked('NR-35') && ' (colaborador inapto para trabalho em altura)'}</>
 											return (
 												<li key={obrigatorio.id} className="text-xs">
 													{training
@@ -312,13 +315,15 @@ export default function GenerateCertificatePage() {
 								<div className="grid grid-cols-2 gap-1.5 rounded-control border border-border bg-surface-muted p-1.5 sm:grid-cols-4">
 									{trainings.map((item) => {
 										const isSelected = item.nr === selectedNr
-										return <button key={item.nr} type="button" aria-pressed={isSelected} disabled={!item.disponivel} title={item.disponivel ? undefined : 'Certificado ainda não disponível'} onClick={() => { setSelectedNr(item.nr); setConfirmed(false) }} className={`min-h-[38px] rounded-control px-2 text-[13px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 ${isSelected ? 'bg-brand text-brand-on-primary' : 'bg-surface-card text-brand hover:bg-surface-success'}`}>
+										const blocked = isBlocked(item.nr)
+										return <button key={item.nr} type="button" aria-pressed={isSelected} disabled={!item.disponivel || blocked} title={blocked ? 'Colaborador inapto para trabalho em altura' : item.disponivel ? undefined : 'Certificado ainda não disponível'} onClick={() => { setSelectedNr(item.nr); setConfirmed(false) }} className={`min-h-[38px] rounded-control px-2 text-[13px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 ${isSelected ? 'bg-brand text-brand-on-primary' : 'bg-surface-card text-brand hover:bg-surface-success'}`}>
 											{item.nr}
 											{pendingNrs.has(item.nr) && <span aria-label="pendente" title="Pendente para a função" className="ml-1 inline-block size-1.5 rounded-full bg-status-warning-text align-middle" />}
 										</button>
 									})}
 								</div>
 								{selectedTraining && <p className="text-xs leading-[1.5] text-text-secondary">{trainingName(selectedTraining)}</p>}
+								{isBlocked('NR-35') && <p role="alert" className="text-xs font-medium leading-[1.5] text-status-danger-text">Colaborador marcado como inapto para trabalho em altura: o certificado de NR-35 não pode ser emitido.</p>}
 							</fieldset>
 							<div className="flex flex-col gap-2">
 								<label htmlFor="certificate-date" className="text-[13px] font-semibold text-text-primary">Data do treinamento</label>
@@ -328,7 +333,7 @@ export default function GenerateCertificatePage() {
 
 						<div className="border-t border-border pt-4">
 							<div className="flex flex-wrap gap-3">
-								<Button type="button" disabled={!employee || !selectedTraining?.disponivel || !trainingDate || confirmed} onClick={() => { setConfirmed(true); setNotice('Dados conferidos. Você já pode registrar o certificado.') }} icon={<img src={confirmIcon} alt="" width="18" height="18" />}>{confirmed ? 'Dados confirmados' : 'Confirmar'}</Button>
+								<Button type="button" disabled={!employee || !canIssue || !trainingDate || confirmed} onClick={() => { setConfirmed(true); setNotice('Dados conferidos. Você já pode registrar o certificado.') }} icon={<img src={confirmIcon} alt="" width="18" height="18" />}>{confirmed ? 'Dados confirmados' : 'Confirmar'}</Button>
 								<Button type="button" variant="secondary" onClick={() => window.location.assign('/colaboradores')} icon={<img src={editIcon} alt="" width="18" height="18" />}>Editar dados</Button>
 							</div>
 							<p className="mt-4 text-xs leading-[1.5] text-text-secondary">Confira o nome, o treinamento e a data antes de gerar o certificado.</p>
@@ -377,8 +382,8 @@ export default function GenerateCertificatePage() {
 									<p className="mt-1 text-[13px] text-text-secondary">{employee?.funcao ?? 'A função será preenchida pelo cadastro'}</p>
 								</div>
 								<div className="flex flex-wrap gap-2">
-									<Button type="button" title="Adicionar treinamento à fila" aria-label="Adicionar treinamento à fila" className="px-3" disabled={!selectedTraining?.disponivel || !trainingDate} onClick={queueSelectedCertificate} icon={<img src={addIcon} alt="" width="18" height="18" />} />
-									<Button type="button" disabled={!employee || !selectedTraining?.disponivel || !confirmed || isSaving || isLoading} className="disabled:!border-brand disabled:!bg-brand disabled:!text-brand-on-primary disabled:opacity-60" onClick={() => void generateCertificates()} icon={<img src={certificateIcon} alt="" width="18" height="18" />}>{isSaving ? 'Gerando...' : 'Gerar certificado'}</Button>
+									<Button type="button" title="Adicionar treinamento à fila" aria-label="Adicionar treinamento à fila" className="px-3" disabled={!canIssue || !trainingDate} onClick={queueSelectedCertificate} icon={<img src={addIcon} alt="" width="18" height="18" />} />
+									<Button type="button" disabled={!employee || !canIssue || !confirmed || isSaving || isLoading} className="disabled:!border-brand disabled:!bg-brand disabled:!text-brand-on-primary disabled:opacity-60" onClick={() => void generateCertificates()} icon={<img src={certificateIcon} alt="" width="18" height="18" />}>{isSaving ? 'Gerando...' : 'Gerar certificado'}</Button>
 								</div>
 							</div>
 							<div className="border-t border-border pt-4">

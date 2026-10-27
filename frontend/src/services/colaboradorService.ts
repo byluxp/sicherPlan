@@ -11,6 +11,8 @@ export interface Colaborador {
     setor_id: number;
     funcao_id: number;
     ativo: boolean;
+    // null = não avaliado; false (inapto) bloqueia o certificado de NR-35
+    apto_trabalho_altura: boolean | null;
     criado_em: string | null;
     atualizado_em: string | null;
 }
@@ -24,6 +26,7 @@ export interface ColaboradorCreate {
     setor_id: number;
     funcao_id: number;
     ativo: boolean;
+    apto_trabalho_altura: boolean | null;
 }
 
 // Dados lidos do documento de identificação pelo backend, para conferência antes de salvar

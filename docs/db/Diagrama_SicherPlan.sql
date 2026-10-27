@@ -8,6 +8,7 @@ CREATE TABLE "colaborador" (
     "setor_id" integer NOT NULL,
     "funcao_id" integer NOT NULL,
     "ativo" boolean DEFAULT true,
+    "apto_trabalho_altura" boolean,
     "criado_em" timestamp DEFAULT(now()),
     "atualizado_em" timestamp DEFAULT(now())
 );

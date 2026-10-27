@@ -20,6 +20,13 @@ const VARIANTE_SITUACAO: Record<SituacaoTreinamento, BadgeVariant> = {
 const CONFORME: Situacao = { label: 'Conforme', variant: 'success' }
 const PENDENTE: Situacao = { label: 'Pendente', variant: 'warning' }
 
+// chave: valor de apto_trabalho_altura (true, false ou null = não avaliado)
+const APTIDAO_ALTURA: Record<string, { situacao: Situacao; detalhe: string }> = {
+	true: { situacao: { label: 'Apto', variant: 'success' }, detalhe: 'Liberado para trabalho em altura' },
+	false: { situacao: { label: 'Inapto', variant: 'danger' }, detalhe: 'Certificado de NR-35 bloqueado' },
+	null: { situacao: { label: 'Não avaliado', variant: 'warning' }, detalhe: 'Marque a aptidão no cadastro' },
+}
+
 function formatDate(value: string | null) {
 	if (!value) return '—'
 	const [year, month, day] = value.slice(0, 10).split('-').map(Number)
@@ -135,9 +142,12 @@ export default function CollaboratorDetailPage() {
 							</section>
 
 							<Secao titulo="Saúde ocupacional">
-								{asoAtual
-									? <Item titulo={`ASO • ${asoAtual.tipo}`} situacao={situacaoVencimento(asoAtual.data_vencimento)} detalhe={textoValidade(asoAtual.data_vencimento)} />
-									: <Item titulo="ASO" situacao={PENDENTE} detalhe="Nenhum ASO registrado" />}
+								<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
+									{asoAtual
+										? <Item titulo={`ASO • ${asoAtual.tipo}`} situacao={situacaoVencimento(asoAtual.data_vencimento)} detalhe={textoValidade(asoAtual.data_vencimento)} />
+										: <Item titulo="ASO" situacao={PENDENTE} detalhe="Nenhum ASO registrado" />}
+									<Item titulo="Trabalho em altura" {...APTIDAO_ALTURA[String(ficha.colaborador.apto_trabalho_altura)]} />
+								</div>
 							</Secao>
 
 							<Secao titulo="Treinamentos">

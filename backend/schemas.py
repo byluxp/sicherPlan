@@ -57,6 +57,8 @@ class ColaboradorBase(BaseModel):
     setor_id : int
     funcao_id : int
     ativo: Optional[bool] = True
+    # None = não avaliado; False (inapto) impede a emissão do certificado de NR-35
+    apto_trabalho_altura: Optional[bool] = None
     
     
     # Limpa e valida a quantidade de numeros do CPF

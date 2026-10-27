@@ -497,6 +497,12 @@ def gerar_certificado_documento_banco(dados: schemas.GerarCertificadoRequest, db
         raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=f"O certificado da {dados.nr_codigo} ainda não está disponível")
     nome_treinamento, nome_modelo, carga_horaria, validade_meses = CERTIFICADOS_POR_NR[dados.nr_codigo]
 
+    if dados.nr_codigo == "NR-35" and colaborador.apto_trabalho_altura is False:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="O colaborador está marcado como inapto para trabalho em altura. O certificado de NR-35 não pode ser emitido.",
+        )
+
     if dados.data_conclusao > date.today():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A data do treinamento não pode estar no futuro")
 

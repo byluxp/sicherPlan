@@ -24,6 +24,8 @@ class Colaborador(Base):
     setor_id = Column(Integer, ForeignKey("setor.id"), nullable=False)
     funcao_id = Column(Integer, ForeignKey("funcao.id"), nullable=False)
     ativo = Column(Boolean, default=True)
+    # aptidão para trabalho em altura (NR-35): None = não avaliado; inapto bloqueia o certificado de NR-35
+    apto_trabalho_altura = Column(Boolean)
     criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)
     atualizado_em = Column(DateTime, default=func.now(), onupdate=func.now(), server_default=func.now(), nullable=False)
 

@@ -24,7 +24,14 @@ type FormState = {
 	data_admissao: string
 	setor_id: string
 	funcao_id: string
+	apto_trabalho_altura: boolean | null
 }
+
+// marcação de aptidão para trabalho em altura; clicar de novo na opção marcada volta para "não avaliado"
+const opcoesAptidaoAltura = [
+	{ valor: true, rotulo: 'Apto', ativo: 'border-brand bg-brand text-brand-on-primary' },
+	{ valor: false, rotulo: 'Inapto', ativo: 'border-status-danger-text bg-status-danger-text text-white' },
+] as const
 
 const emptyForm: FormState = {
 	nome: '',
@@ -33,6 +40,7 @@ const emptyForm: FormState = {
 	data_admissao: '',
 	setor_id: '',
 	funcao_id: '',
+	apto_trabalho_altura: null,
 }
 
 function formatCpf(value: string) {
@@ -51,6 +59,7 @@ function toFormState(colaborador: Colaborador): FormState {
 		data_admissao: colaborador.data_admissao,
 		setor_id: String(colaborador.setor_id),
 		funcao_id: String(colaborador.funcao_id),
+		apto_trabalho_altura: colaborador.apto_trabalho_altura,
 	}
 }
 
@@ -174,6 +183,7 @@ export default function CollaboratorsPage() {
 			setor_id: Number(form.setor_id),
 			funcao_id: Number(form.funcao_id),
 			ativo: true,
+			apto_trabalho_altura: form.apto_trabalho_altura,
 		}
 
 		try {
@@ -315,6 +325,32 @@ export default function CollaboratorsPage() {
 									{funcoesDoSetor.map((funcao) => <option key={funcao.id} value={funcao.id}>{funcao.nome}</option>)}
 								</Select>
 							</div>
+							<fieldset className="flex flex-col gap-2">
+								<legend className="mb-2 text-[13px] font-semibold text-text-primary">Trabalho em altura (NR-35)</legend>
+								<div className="grid grid-cols-2 gap-1.5 rounded-control border border-border bg-surface-muted p-1.5">
+									{opcoesAptidaoAltura.map((opcao) => {
+										const marcado = form.apto_trabalho_altura === opcao.valor
+										return (
+											<button
+												key={opcao.rotulo}
+												type="button"
+												aria-pressed={marcado}
+												onClick={() => setForm((current) => ({ ...current, apto_trabalho_altura: marcado ? null : opcao.valor }))}
+												className={`min-h-[38px] rounded-control border px-2 text-[13px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-brand ${marcado ? opcao.ativo : 'border-transparent bg-surface-card text-brand hover:bg-surface-success'}`}
+											>
+												{opcao.rotulo}
+											</button>
+										)
+									})}
+								</div>
+								<p className={`text-xs leading-[1.5] ${form.apto_trabalho_altura === false ? 'font-medium text-status-danger-text' : 'text-text-secondary'}`}>
+									{form.apto_trabalho_altura === null
+										? 'Não avaliado. Marque conforme o ASO do colaborador.'
+										: form.apto_trabalho_altura
+											? 'Apto para trabalho em altura.'
+											: 'Inapto: o certificado de NR-35 não poderá ser emitido.'}
+								</p>
+							</fieldset>
 							<div className="mt-1 border-t border-border pt-4">
 								<div className="flex flex-wrap gap-3">
 									<Button type="submit" disabled={saving || loading} icon={<Save className="size-[18px]" />}>{saving ? 'Salvando...' : editingId === null ? 'Salvar colaborador' : 'Atualizar colaborador'}</Button>

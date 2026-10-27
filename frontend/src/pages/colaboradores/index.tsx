@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { CalendarDays, CircleAlert, FileCheck, FileUp, Pencil, Save, Search, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
+import { CalendarDays, CircleAlert, Eye, FileCheck, FileUp, Pencil, Save, Search, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
 import AppHeader from '../../components/header/app-header'
 import Button from '../../components/ui/button'
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -73,10 +73,18 @@ export default function CollaboratorsPage() {
 
 	useEffect(() => {
 		document.title = 'Colaboradores | sicherPlan'
-		void carregarDados()
+		void carregarDados().then((carregados) => {
+			// "Editar" na página de detalhes volta para cá com ?editar=<id>
+			const editarId = Number(new URLSearchParams(window.location.search).get('editar'))
+			const colaborador = carregados.find((item) => item.id === editarId)
+			if (!editarId) return
+			window.history.replaceState(null, '', window.location.pathname)
+			if (colaborador) iniciarEdicao(colaborador)
+			else setError('O colaborador selecionado para edição não está entre os ativos.')
+		})
 	}, [])
 
-	async function carregarDados() {
+	async function carregarDados(): Promise<Colaborador[]> {
 		setLoading(true)
 		try {
 			const [colaboradoresResponse, setoresResponse, funcoesResponse] = await Promise.all([
@@ -88,9 +96,11 @@ export default function CollaboratorsPage() {
 			setSetores(setoresResponse.data)
 			setFuncoes(funcoesResponse.data)
 			setError(null)
+			return colaboradoresResponse
 		} catch (requestError) {
 			console.error('Erro ao carregar dados dos colaboradores:', requestError)
 			setError('Não foi possível carregar os dados. Confira se o backend e o PostgreSQL estão ativos.')
+			return []
 		} finally {
 			setLoading(false)
 		}
@@ -357,7 +367,7 @@ export default function CollaboratorsPage() {
 						<CardContent className="flex flex-col gap-4">
 							<Input aria-label="Buscar por nome ou CPF" placeholder="Buscar por nome ou CPF" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} startAdornment={<Search className="size-[18px] text-brand" />} />
 							<Table aria-label="Colaboradores cadastrados">
-								<TableHeader><TableRow className="border-0"><TableHead>Nome completo</TableHead><TableHead className="w-[150px]">CPF</TableHead><TableHead className="w-[210px]">Função / setor</TableHead><TableHead className="w-[96px] text-right">Ações</TableHead></TableRow></TableHeader>
+								<TableHeader><TableRow className="border-0"><TableHead>Nome completo</TableHead><TableHead className="w-[150px]">CPF</TableHead><TableHead className="w-[210px]">Função / setor</TableHead><TableHead className="w-[132px] text-right">Ações</TableHead></TableRow></TableHeader>
 								<TableBody>
 									{visibleCollaborators.map((colaborador) => {
 										const funcao = funcoes.find((item) => item.id === colaborador.funcao_id)?.nome ?? 'Função não encontrada'
@@ -367,6 +377,7 @@ export default function CollaboratorsPage() {
 											<TableCell className="whitespace-nowrap text-xs text-text-secondary">{formatCpf(colaborador.cpf)}</TableCell>
 											<TableCell className="text-xs"><span className="block">{funcao}</span><span className="text-text-secondary">{setor}</span></TableCell>
 											<TableCell><div className="flex justify-end gap-1">
+												<button type="button" title={`Consultar ${colaborador.nome}`} aria-label={`Consultar ${colaborador.nome}`} onClick={() => window.location.assign(`/colaboradores/detalhe?id=${colaborador.id}`)} className="inline-flex size-9 items-center justify-center rounded-control text-brand hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand"><Eye aria-hidden="true" className="size-4" /></button>
 												<button type="button" title={`Editar ${colaborador.nome}`} aria-label={`Editar ${colaborador.nome}`} onClick={() => iniciarEdicao(colaborador)} className="inline-flex size-9 items-center justify-center rounded-control text-brand hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand"><Pencil aria-hidden="true" className="size-4" /></button>
 												<button type="button" title={`Desativar ${colaborador.nome}`} aria-label={`Desativar ${colaborador.nome}`} onClick={() => void removerColaborador(colaborador)} className="inline-flex size-9 items-center justify-center rounded-control text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-700"><Trash2 aria-hidden="true" className="size-4" /></button>
 											</div></TableCell>

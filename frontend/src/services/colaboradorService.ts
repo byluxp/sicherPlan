@@ -6,7 +6,7 @@ export interface Colaborador {
     nome: string;
     cpf: string;
     data_nascimento: string | null;
-    data_admissao: string;
+    data_admissao: string | null;
     data_demissao: string | null;
     setor_id: number;
     funcao_id: number;
@@ -21,7 +21,7 @@ export interface ColaboradorCreate {
     nome: string;
     cpf: string;
     data_nascimento: string | null;
-    data_admissao: string;
+    data_admissao: string | null;
     data_demissao: string | null;
     setor_id: number;
     funcao_id: number;

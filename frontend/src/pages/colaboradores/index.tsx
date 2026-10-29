@@ -56,7 +56,7 @@ function toFormState(colaborador: Colaborador): FormState {
 		nome: colaborador.nome,
 		cpf: formatCpf(colaborador.cpf),
 		data_nascimento: colaborador.data_nascimento ?? '',
-		data_admissao: colaborador.data_admissao,
+		data_admissao: colaborador.data_admissao ?? '',
 		setor_id: String(colaborador.setor_id),
 		funcao_id: String(colaborador.funcao_id),
 		apto_trabalho_altura: colaborador.apto_trabalho_altura,
@@ -178,7 +178,7 @@ export default function CollaboratorsPage() {
 			nome: form.nome.trim(),
 			cpf: form.cpf,
 			data_nascimento: form.data_nascimento || null,
-			data_admissao: form.data_admissao,
+			data_admissao: form.data_admissao || null,
 			data_demissao: null,
 			setor_id: Number(form.setor_id),
 			funcao_id: Number(form.funcao_id),
@@ -308,7 +308,7 @@ export default function CollaboratorsPage() {
 								</div>
 								<div className="flex flex-col gap-2">
 									<label htmlFor="collaborator-hire" className="text-[13px] font-semibold text-text-primary">Data de admissão</label>
-									<Input id="collaborator-hire" type="date" value={form.data_admissao} onChange={(event) => setForm((current) => ({ ...current, data_admissao: event.target.value }))} required />
+									<Input id="collaborator-hire" type="date" value={form.data_admissao} onChange={(event) => setForm((current) => ({ ...current, data_admissao: event.target.value }))} />
 								</div>
 							</div>
 							<div className="flex flex-col gap-2">

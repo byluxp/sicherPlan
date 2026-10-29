@@ -3,7 +3,7 @@ CREATE TABLE "colaborador" (
     "nome" varchar NOT NULL,
     "cpf" varchar UNIQUE NOT NULL,
     "data_nascimento" date,
-    "data_admissao" date NOT NULL,
+    "data_admissao" date,
     "data_demissao" date,
     "setor_id" integer NOT NULL,
     "funcao_id" integer NOT NULL,

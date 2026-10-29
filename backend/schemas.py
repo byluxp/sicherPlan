@@ -52,7 +52,8 @@ class ColaboradorBase(BaseModel):
     nome: str
     cpf: str
     data_nascimento : Optional[date] = None
-    data_admissao : date
+    # opcional: a planilha de controle importada não tem a admissão
+    data_admissao : Optional[date] = None
     data_demissao : Optional[date] = None
     setor_id : int
     funcao_id : int

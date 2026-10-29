@@ -19,7 +19,7 @@ class Colaborador(Base):
     nome = Column(String, nullable=False)
     cpf = Column(String, unique=True, nullable=False)
     data_nascimento = Column(Date)
-    data_admissao = Column(Date, nullable=False)
+    data_admissao = Column(Date)
     data_demissao = Column(Date)
     setor_id = Column(Integer, ForeignKey("setor.id"), nullable=False)
     funcao_id = Column(Integer, ForeignKey("funcao.id"), nullable=False)

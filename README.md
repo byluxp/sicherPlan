@@ -15,7 +15,21 @@ O SicherPlan tem como objetivo reduzir controles manuais e facilitar o acompanha
 - controle de colaboradores ativos e inativos;
 - visualização dos dados cadastrais;
 - histórico de mudanças de função;
-- identificação de EPIs e documentos pendentes.
+- identificação de EPIs e documentos pendentes;
+- aptidão para trabalho em altura (apto ou inapto) obrigatória no cadastro; quem está inapto não pode receber o certificado de NR-35.
+
+#### ASOs na gestão do colaborador
+
+Em **Detalhes do colaborador › Saúde ocupacional › Editar** (só para colaboradores já cadastrados):
+
+- histórico de ASOs do colaborador, com edição e exclusão;
+- cadastro de ASO com tipo (admissional, periódico, retorno ao trabalho, mudança de risco ocupacional ou demissional), data do exame clínico, data de liberação, vencimento, resultado (apto ou inapto), aptidão para trabalho em altura e exames realizados com as datas;
+- importação do PDF (ou foto) do ASO: os campos são lidos e preenchidos para conferência antes de salvar. A leitura é feita primeiro no servidor (texto do PDF ou OCR) e a IA (Gemini) só entra quando falta algum campo;
+- aviso quando o CPF ou o nome do ASO não batem com o cadastro;
+- vencimento sugerido de 12 meses após a liberação, ajustável conforme o PCMSO; o demissional não vence;
+- o ASO mais recente atualiza a aptidão para trabalho em altura do cadastro (ex.: apto no admissional e inapto no periódico bloqueia a NR-35).
+
+> O ASO contém dado de saúde (dado sensível na LGPD). Quando a IA é usada, o arquivo é enviado ao Google: use uma chave do Gemini de projeto com faturamento ativo.
 
 ### EPIs
 

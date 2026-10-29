@@ -1,6 +1,21 @@
 @import 'tailwindcss';
 @config '../tailwind.config.js';
 
+/* Paleta do sistema (usada pelo tailwind.config.js): superfícies neutras, verde só na marca e nos status */
+:root {
+  --color-brand: #176944;
+  --color-brand-deep: #1b2a22;
+  --color-brand-on-primary: #eaf6ed;
+  --color-surface-page: #f5f6f5;
+  --color-surface-muted: #eef0ef;
+  --color-surface-card: #ffffff;
+  --color-surface-input: #fafbfa;
+  --color-surface-success: #e2f2e7;
+  --color-text-primary: #1b2a22;
+  --color-text-secondary: #5d6862;
+  --color-border: #dfe3e1;
+}
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;
@@ -115,8 +130,8 @@ code {
 
 :root {
   color-scheme: light;
-  color: #123d2a;
-  background: #eaf3ed;
+  color: var(--color-text-primary);
+  background: var(--color-surface-page);
   font: 14px/1.45 Inter, sans-serif;
   letter-spacing: 0;
 }
@@ -151,5 +166,5 @@ p {
 
 h1,
 h2 {
-  color: #123d2a;
+  color: var(--color-brand-deep);
 }

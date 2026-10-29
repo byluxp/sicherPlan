@@ -1,25 +1,26 @@
+// cores em variáveis CSS (valores em src/index.css), para que um tema possa trocá-las por escopo
 export default {
   theme: {
     extend: {
       colors: {
         brand: {
-          DEFAULT: '#176944',
-          deep: '#123d2a',
-          'on-primary': '#eaf6ed',
+          DEFAULT: 'var(--color-brand)',
+          deep: 'var(--color-brand-deep)',
+          'on-primary': 'var(--color-brand-on-primary)',
         },
         surface: {
-          page: '#eaf3ed',
-          muted: '#dfeee3',
-          card: '#f5faf6',
-          input: '#f0f7f2',
-          success: '#cde9d6',
+          page: 'var(--color-surface-page)',
+          muted: 'var(--color-surface-muted)',
+          card: 'var(--color-surface-card)',
+          input: 'var(--color-surface-input)',
+          success: 'var(--color-surface-success)',
         },
         text: {
-          primary: '#123d2a',
-          secondary: '#547361',
+          primary: 'var(--color-text-primary)',
+          secondary: 'var(--color-text-secondary)',
         },
         border: {
-          DEFAULT: '#bed5c5',
+          DEFAULT: 'var(--color-border)',
         },
         status: {
           warning: {

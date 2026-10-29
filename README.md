@@ -44,7 +44,8 @@ Em **Detalhes do colaborador › Saúde ocupacional › Editar** (só para colab
 
 ### Setores e funções
 
-- Cadastro de setores e funções;
+- Cadastro de setores e funções, com nome, setor e descrição da função (as atividades do cargo, conforme o PGR);
+- descrição da função atual exibida nos detalhes do colaborador;
 - definição de EPIs obrigatórios por função;
 - cadastro de treinamentos e documentos exigidos;
 - atualização das exigências quando a função do colaborador for alterada.

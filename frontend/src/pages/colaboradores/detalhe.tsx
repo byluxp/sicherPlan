@@ -131,6 +131,10 @@ export default function CollaboratorDetailPage() {
 											<dd className="mt-1 text-sm text-brand-deep">{valor}</dd>
 										</div>
 									))}
+									<div className="sm:col-span-3">
+										<dt className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Descrição da função</dt>
+										<dd className="mt-1 text-sm leading-[1.6] text-brand-deep">{ficha.descricaoFuncao ?? 'Sem descrição cadastrada. Adicione em Funções e setores.'}</dd>
+									</div>
 								</dl>
 							</section>
 

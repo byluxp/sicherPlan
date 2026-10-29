@@ -80,6 +80,7 @@ export interface FichaColaborador {
     colaborador: Colaborador;
     setor: string;
     funcao: string;
+    descricaoFuncao: string | null;
     // treinamentos exigidos pela função do colaborador
     treinamentosObrigatorios: TreinamentoObrigatorio[];
     asos: FichaAso[];
@@ -95,7 +96,7 @@ export const colaboradorService = {
         const [colaborador, setores, funcoes, asos, treinamentos, entregas, documentos, ordensServico] = await Promise.all([
             api.get<Colaborador>(`/colaboradores/${id}`),
             api.get<{ id: number; nome: string }[]>('/setores/', { params: { apenas_ativos: false } }),
-            api.get<{ id: number; nome: string; treinamentos_obrigatorios: TreinamentoObrigatorio[] }[]>('/funcoes/', { params: { apenas_ativos: false } }),
+            api.get<{ id: number; nome: string; descricao: string | null; treinamentos_obrigatorios: TreinamentoObrigatorio[] }[]>('/funcoes/', { params: { apenas_ativos: false } }),
             api.get<FichaAso[]>('/asos/', { params }),
             api.get<FichaTreinamento[]>('/treinamentos/', { params }),
             api.get<FichaEntregaEpi[]>('/entregas-epi/', { params }),
@@ -107,6 +108,7 @@ export const colaboradorService = {
             colaborador: colaborador.data,
             setor: setores.data.find((setor) => setor.id === colaborador.data.setor_id)?.nome ?? 'Setor não encontrado',
             funcao: funcao?.nome ?? 'Função não encontrada',
+            descricaoFuncao: funcao?.descricao ?? null,
             treinamentosObrigatorios: funcao?.treinamentos_obrigatorios ?? [],
             asos: asos.data,
             treinamentos: treinamentos.data,

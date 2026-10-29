@@ -36,6 +36,7 @@ export default function FunctionsSectorsPage() {
 	const [sectorName, setSectorName] = useState('')
 	const [editingSector, setEditingSector] = useState<Setor | null>(null)
 	const [functionName, setFunctionName] = useState('')
+	const [functionDescription, setFunctionDescription] = useState('')
 	const [selectedSectorId, setSelectedSectorId] = useState<number | ''>('')
 	const [editingFunction, setEditingFunction] = useState<Funcao | null>(null)
 	const [selectedNrs, setSelectedNrs] = useState<string[]>([])
@@ -122,6 +123,7 @@ export default function FunctionsSectorsPage() {
 	function resetFunctionForm() {
 		setEditingFunction(null)
 		setFunctionName('')
+		setFunctionDescription('')
 		setSelectedNrs([])
 		setCustomTrainings([])
 		setIsAddingCustom(false)
@@ -165,6 +167,7 @@ export default function FunctionsSectorsPage() {
 	function startEditingFunction(job: Funcao) {
 		setEditingFunction(job)
 		setFunctionName(job.nome)
+		setFunctionDescription(job.descricao ?? '')
 		setSelectedSectorId(job.setor_id)
 		const codes = job.treinamentos_obrigatorios.map((training) => training.nr_codigo ?? training.nome)
 		setSelectedNrs(codes.filter((code) => nrsTreinamentoObrigatorio.includes(code)))
@@ -189,7 +192,7 @@ export default function FunctionsSectorsPage() {
 			const dados = {
 				nome: name,
 				setor_id: selectedSectorId,
-				descricao: editingFunction?.descricao ?? null,
+				descricao: functionDescription.trim() || null,
 				ativo: editingFunction?.ativo ?? true,
 				treinamentos_obrigatorios: [...selectedNrs, ...customTrainings],
 			}
@@ -375,6 +378,21 @@ export default function FunctionsSectorsPage() {
 										</button>
 									)
 								})}
+							</div>
+
+							<div className="flex flex-col gap-2">
+								<label htmlFor="function-description" className="text-[13px] font-semibold text-text-primary">
+									Descrição da função
+								</label>
+								<textarea
+									id="function-description"
+									value={functionDescription}
+									onChange={(event) => setFunctionDescription(event.target.value)}
+									placeholder="Atividades da função, conforme o PGR"
+									rows={4}
+									disabled={isSavingFunction}
+									className="w-full resize-y rounded-control border border-border bg-surface-input px-3.5 py-3 text-sm leading-[1.5] text-text-primary outline-none transition-colors placeholder:text-text-secondary focus:border-brand focus:ring-2 focus:ring-brand/20"
+								/>
 							</div>
 
 							<fieldset className="flex flex-col gap-2" disabled={isSavingFunction}>

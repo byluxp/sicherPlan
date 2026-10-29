@@ -259,7 +259,7 @@ $env:POSTGRES_PORT = "5433"
 python -m uvicorn main:app --reload
 ```
 
-Ative sempre o virtualenv antes de instalar dependências ou iniciar Uvicorn. Inicie o comando com a pasta atual em `backend`, para que `main:app` seja encontrado. A aplicação cria tabelas que faltam e executa `seed_initial_data()` no startup.
+Ative sempre o virtualenv antes de instalar dependências ou iniciar Uvicorn. Inicie o comando com a pasta atual em `backend`, para que `main:app` seja encontrado. A aplicação cria as tabelas que faltam e aplica as migrações de `backend/migrations` no startup. O banco começa vazio; os dados de teste usados no início do projeto ficam guardados como histórico em `docs/historico/seed_data_teste.py`.
 
 Confirme a API em `http://127.0.0.1:8000/` (deve retornar `{"status":"Backend do SicherPlan rodando"}`) e acesse a documentação em `http://127.0.0.1:8000/docs`.
 

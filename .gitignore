@@ -6,6 +6,8 @@
 **/__pycache__/
 **/arquivos_gerados/
 **/testar_geracao.py
+# scripts locais de importação de dados reais (não vão para o GitHub)
+backend/scripts/
 
 #Ignorar arquivos IDE
 .vscode

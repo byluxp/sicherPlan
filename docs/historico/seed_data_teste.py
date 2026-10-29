@@ -1,3 +1,6 @@
+# Histórico: dados fictícios usados para testar o sistema no início do projeto.
+# Não é mais executado pelo backend (o banco recebe dados reais). Nenhum dado aqui é real.
+
 from datetime import date
 
 from sqlalchemy.orm import Session

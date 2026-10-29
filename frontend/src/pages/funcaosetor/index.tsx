@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Boxes, Building2, CalendarDays, Check, Factory, Pencil, Plus, Save, ShieldCheck, Wrench, X } from 'lucide-react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Boxes, Building2, CalendarDays, Check, ChevronRight, Factory, Pencil, Plus, Save, ShieldCheck, UsersRound, Wrench, X } from 'lucide-react'
 import AppHeader from '../../components/header/app-header'
 import Button from '../../components/ui/button'
 import Card, {
@@ -46,6 +46,9 @@ export default function FunctionsSectorsPage() {
 	const [isSavingSector, setIsSavingSector] = useState(false)
 	const [isSavingFunction, setIsSavingFunction] = useState(false)
 	const [errorMessage, setErrorMessage] = useState('')
+	// função mostrada na janela de pessoas; não é limpa ao fechar, a próxima abertura a substitui
+	const [viewingFunction, setViewingFunction] = useState<Funcao | null>(null)
+	const peopleDialogRef = useRef<HTMLDialogElement>(null)
 
 	useEffect(() => {
 		document.title = 'Funções e setores | sicherPlan'
@@ -142,6 +145,21 @@ export default function FunctionsSectorsPage() {
 		}
 		setCustomTrainingText('')
 		setIsAddingCustom(false)
+	}
+
+	function openPeopleDialog(job: Funcao) {
+		setViewingFunction(job)
+		if (!peopleDialogRef.current?.open) peopleDialogRef.current?.showModal()
+	}
+
+	const peopleInViewingFunction = viewingFunction
+		? collaborators
+			.filter((collaborator) => collaborator.funcao_id === viewingFunction.id)
+			.sort((left, right) => left.nome.localeCompare(right.nome, 'pt-BR'))
+		: []
+
+	function formatCpf(value: string) {
+		return value.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
 	}
 
 	function startEditingFunction(job: Funcao) {
@@ -446,27 +464,39 @@ export default function FunctionsSectorsPage() {
 							</div>
 							<CardContent>
 												{!isLoading && functions.length === 0 && <p className="mb-3 text-sm text-text-secondary">Nenhuma função cadastrada.</p>}
-								<Table aria-label="Funções cadastradas">
+								<Table aria-label="Funções cadastradas" className="min-w-0! table-fixed">
 									<TableHeader>
 										<TableRow className="border-0">
-											<TableHead>Função</TableHead>
-											<TableHead className="w-[155px]">Setor vinculado</TableHead>
-											<TableHead>Treinamentos obrigatórios</TableHead>
-											<TableHead className="w-[56px] text-right">Ações</TableHead>
+											<TableHead className="px-2!">Função</TableHead>
+											<TableHead className="hidden w-[96px] px-2! sm:table-cell">Setor</TableHead>
+											<TableHead className="px-2!">Treinamentos</TableHead>
+											<TableHead className="w-[84px] px-2! text-right">Ações</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
 														{functions.map((job) => (
-															<TableRow key={job.id} className="h-[53px]">
-																<TableCell>{job.nome}</TableCell>
-																<TableCell className="text-xs text-text-secondary">{sectors.find((sector) => sector.id === job.setor_id)?.nome ?? 'Setor não encontrado'}</TableCell>
-																<TableCell className="text-xs">
+															<TableRow key={job.id}>
+																<TableCell className="px-2! py-2.5! text-[12px]! font-medium break-words">
+																	{job.nome}
+																	<span className="block font-normal text-text-secondary sm:hidden">{sectors.find((sector) => sector.id === job.setor_id)?.nome}</span>
+																</TableCell>
+																<TableCell className="hidden px-2! py-2.5! text-[12px]! text-text-secondary sm:table-cell">{sectors.find((sector) => sector.id === job.setor_id)?.nome ?? 'Setor não encontrado'}</TableCell>
+																<TableCell className="px-2! py-2.5! text-[12px]! leading-snug!">
 																	{job.treinamentos_obrigatorios.length > 0
 																		? job.treinamentos_obrigatorios.map((training) => training.nr_codigo ?? training.nome).join(', ')
 																		: <span className="text-text-secondary">Nenhum</span>}
 																</TableCell>
-																<TableCell>
-																	<div className="flex justify-end">
+																<TableCell className="px-1! py-1.5!">
+																	<div className="flex justify-end gap-1">
+																		<button
+																			type="button"
+																			title={`Ver pessoas em ${job.nome}`}
+																			aria-label={`Ver pessoas em ${job.nome}`}
+																			onClick={() => openPeopleDialog(job)}
+																			className="inline-flex size-9 items-center justify-center rounded-control text-brand hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand"
+																		>
+																			<UsersRound aria-hidden="true" className="size-4" />
+																		</button>
 																		<button
 																			type="button"
 																			title={`Editar ${job.nome}`}
@@ -488,6 +518,54 @@ export default function FunctionsSectorsPage() {
 					</Card>
 				</section>
 			</main>
+
+			<dialog
+				ref={peopleDialogRef}
+				aria-labelledby="people-dialog-title"
+				onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close() }}
+				className="m-auto w-[min(520px,calc(100%-32px))] rounded-card border border-border bg-white p-0 text-text-primary shadow-xl backdrop:bg-black/40"
+			>
+				{viewingFunction && (
+					<div className="flex max-h-[80vh] flex-col gap-4 p-5 sm:p-6">
+						<div className="flex items-start justify-between gap-3">
+							<div>
+								<h2 id="people-dialog-title" className="text-lg font-semibold text-brand-deep">{viewingFunction.nome}</h2>
+								<p className="mt-1 text-xs text-text-secondary">
+									{sectors.find((sector) => sector.id === viewingFunction.setor_id)?.nome ?? 'Setor não encontrado'} • {peopleInViewingFunction.length} {peopleInViewingFunction.length === 1 ? 'pessoa ativa' : 'pessoas ativas'}
+								</p>
+							</div>
+							<button
+								type="button"
+								aria-label="Fechar"
+								onClick={() => peopleDialogRef.current?.close()}
+								className="inline-flex size-9 shrink-0 items-center justify-center rounded-control text-brand hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand"
+							>
+								<X aria-hidden="true" className="size-4" />
+							</button>
+						</div>
+						{peopleInViewingFunction.length === 0 ? (
+							<p className="text-sm text-text-secondary">Nenhum colaborador ativo nesta função.</p>
+						) : (
+							<ul className="-mx-2 flex flex-col overflow-y-auto">
+								{peopleInViewingFunction.map((collaborator) => (
+									<li key={collaborator.id}>
+										<a
+											href={`/colaboradores/detalhe?id=${collaborator.id}`}
+											className="flex items-center gap-3 rounded-control px-2 py-2.5 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand"
+										>
+											<span className="min-w-0 flex-1">
+												<span className="block truncate text-sm font-semibold text-brand-deep">{collaborator.nome}</span>
+												<span className="block text-xs text-text-secondary">CPF {formatCpf(collaborator.cpf)}</span>
+											</span>
+											<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-brand" />
+										</a>
+									</li>
+								))}
+							</ul>
+						)}
+					</div>
+				)}
+			</dialog>
 		</div>
 	)
 }

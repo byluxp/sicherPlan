@@ -6,6 +6,7 @@ Comandos para rodar o projeto:
 """
 
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,7 +49,9 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 # ajustes em tabelas existentes (colunas novas etc.) que o create_all não faz
 aplicar_migracoes()
-seed_initial_data()
+# dados fictícios só quando pedidos (SEED_DADOS_TESTE=true no .env); o banco agora recebe dados reais
+if os.getenv("SEED_DADOS_TESTE", "").lower() in ("1", "true", "sim"):
+    seed_initial_data()
 
 
 @app.get("/")

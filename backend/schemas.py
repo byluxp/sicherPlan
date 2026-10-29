@@ -181,16 +181,47 @@ class HistoricoFuncaoResponse(HistoricoFuncaoBase):
         from_attributes = True
         
 #-------------------Aso-------------------
+TIPOS_ASO = ("Admissional", "Periódico", "Retorno ao trabalho", "Mudança de risco ocupacional", "Demissional")
+
+class AsoExame(BaseModel):
+    nome: str
+    data: Optional[date] = None
+
 class AsoBase(BaseModel):
     colaborador_id: int
     tipo: str
-    data_emissao: datetime
-    data_vencimento: datetime
+    data_exame: Optional[date] = None
+    data_emissao: date  # liberação do ASO
+    data_vencimento: Optional[date] = None
+    exames: list[AsoExame] = []
+    resultado: Optional[Literal["Apto", "Inapto"]] = None
+    # None = o ASO não fala de trabalho em altura
+    apto_trabalho_altura: Optional[bool] = None
     url_documento: Optional[str] = None
     observacao: Optional[str] = None
 
 class AsoCreate(AsoBase):
-    pass
+    @field_validator('tipo')
+    @classmethod
+    def validar_tipo(cls, v: str) -> str:
+        if v not in TIPOS_ASO:
+            raise ValueError(f"Tipo de ASO inválido. Use um destes: {', '.join(TIPOS_ASO)}.")
+        return v
+
+# Dados lidos do PDF do ASO, devolvidos para conferência antes de salvar
+class AsoImportacaoDocumentoResponse(BaseModel):
+    tipo: Optional[str] = None
+    nome: Optional[str] = None
+    cpf: Optional[str] = None
+    data_exame: Optional[date] = None
+    data_emissao: Optional[date] = None
+    data_vencimento: Optional[date] = None
+    exames: list[AsoExame] = []
+    resultado: Optional[Literal["Apto", "Inapto"]] = None
+    apto_trabalho_altura: Optional[bool] = None
+    campos_nao_encontrados: list[str]
+    metodo_leitura: Literal["ia", "ocr"]
+    avisos: list[str] = []
 
 class AsoResponse(AsoBase):
     id: int

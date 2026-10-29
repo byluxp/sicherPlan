@@ -7,7 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from services import documentos as documentos_service
-from services import leitura_ca, leitura_identificacao
+from services import leitura_aso, leitura_ca, leitura_identificacao
 
 
 #====================================Colaboradores====================================
@@ -351,15 +351,62 @@ def desativar_epi_por_id_banco(epi_id: int, db: Session):
 
 #====================================ASO====================================
 
+# admissional, periódico, retorno e mudança de risco vencem em 12 meses (prazo padrão da NR-7; o PCMSO pode reduzir)
+MESES_VALIDADE_ASO = 12
+
+
+def _buscar_colaborador(colaborador_id: int, db: Session) -> models.Colaborador:
+    colaborador = db.query(models.Colaborador).filter(models.Colaborador.id == colaborador_id).first()
+    if not colaborador:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador não encontrado")
+    return colaborador
+
+
+def _dados_aso(aso: schemas.AsoCreate) -> dict:
+    # modo json: as datas dos exames vão para a coluna jsonb como texto AAAA-MM-DD
+    return {**aso.model_dump(exclude={"exames"}), "exames": aso.model_dump(mode="json")["exames"]}
+
+
+# O ASO mais recente define a aptidão para altura do cadastro (ex.: apto no admissional, inapto no periódico)
+def _sincronizar_aptidao_altura(colaborador_id: int, db: Session):
+    mais_recente = (
+        db.query(models.Aso)
+        .filter(models.Aso.colaborador_id == colaborador_id)
+        .order_by(models.Aso.data_emissao.desc(), models.Aso.id.desc())
+        .first()
+    )
+    if mais_recente and mais_recente.apto_trabalho_altura is not None:
+        _buscar_colaborador(colaborador_id, db).apto_trabalho_altura = mais_recente.apto_trabalho_altura
+
+
+def _palavras(texto: str) -> list[str]:
+    return leitura_identificacao._sem_acentos(texto).split()
+
+
+# Lê o PDF do ASO e devolve os dados para conferência (não grava no banco)
+def importar_documento_aso(conteudo: bytes, colaborador_id: int, db: Session):
+    colaborador = _buscar_colaborador(colaborador_id, db)
+    dados = leitura_aso.ler_aso(conteudo)
+    if dados["tipo"] and dados["tipo"] != "Demissional" and dados["data_emissao"]:
+        dados["data_vencimento"] = _add_months(dados["data_emissao"], MESES_VALIDADE_ASO)
+
+    # o ASO pode ser de outra pessoa: avisa em vez de bloquear, quem confere é o usuário
+    if dados["cpf"] and dados["cpf"] != colaborador.cpf:
+        dados["avisos"].append(f"O CPF do ASO é diferente do CPF de {colaborador.nome}. Confira se o arquivo é desta pessoa.")
+    elif dados["nome"]:
+        lido, cadastrado = _palavras(dados["nome"]), _palavras(colaborador.nome)
+        if lido[0] != cadastrado[0] or lido[-1] != cadastrado[-1]:
+            dados["avisos"].append(f"O nome no ASO ({dados['nome']}) é diferente do cadastro. Confira se o arquivo é desta pessoa.")
+    return dados
+
+
 # Criar um novo ASO
 def criar_aso_banco(aso: schemas.AsoCreate, db: Session):
-    colaborador = db.query(models.Colaborador).filter(models.Colaborador.id == aso.colaborador_id).first()
-    
-    if not colaborador:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Colaborador nao encontrado")
-    
-    novo_aso = models.Aso(**aso.model_dump())
+    _buscar_colaborador(aso.colaborador_id, db)
+    novo_aso = models.Aso(**_dados_aso(aso))
     db.add(novo_aso)
+    db.flush()
+    _sincronizar_aptidao_altura(aso.colaborador_id, db)
     db.commit()
     db.refresh(novo_aso)
     return novo_aso
@@ -370,7 +417,7 @@ def listar_asos_banco(db: Session, colaborador_id: Optional[int] = None):
     query = db.query(models.Aso)
     if colaborador_id:
         query = query.filter(models.Aso.colaborador_id == colaborador_id)
-    return query.all()
+    return query.order_by(models.Aso.data_emissao.desc(), models.Aso.id.desc()).all()
 
 
 # Buscar ASO por id
@@ -383,11 +430,12 @@ def buscar_aso_por_id_banco(aso_id: int, db: Session):
 
 # Atualizar ASO por id
 def atualizar_aso_por_id_banco(aso_id: int, dados_novos: schemas.AsoCreate, db: Session):
-    aso_banco = db.query(models.Aso).filter(models.Aso.id == aso_id).first()
-    if not aso_banco:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ASO não encontrado")
-    for chave, valor in dados_novos.model_dump().items():
+    aso_banco = buscar_aso_por_id_banco(aso_id, db)
+    _buscar_colaborador(dados_novos.colaborador_id, db)
+    for chave, valor in _dados_aso(dados_novos).items():
         setattr(aso_banco, chave, valor)
+    db.flush()
+    _sincronizar_aptidao_altura(aso_banco.colaborador_id, db)
     db.commit()
     db.refresh(aso_banco)
     return aso_banco
@@ -395,10 +443,10 @@ def atualizar_aso_por_id_banco(aso_id: int, dados_novos: schemas.AsoCreate, db: 
 
 # Deletar ASO por id
 def deletar_aso_por_id_banco(aso_id: int, db: Session):
-    aso_banco = db.query(models.Aso).filter(models.Aso.id == aso_id).first()
-    if not aso_banco:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ASO não encontrado")
+    aso_banco = buscar_aso_por_id_banco(aso_id, db)
     db.delete(aso_banco)
+    db.flush()
+    _sincronizar_aptidao_altura(aso_banco.colaborador_id, db)
     db.commit()
     return {"mensagem": "ASO deletado com sucesso"}
 

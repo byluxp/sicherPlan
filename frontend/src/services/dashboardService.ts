@@ -62,7 +62,8 @@ interface AsoRecord {
 	id: number
 	colaborador_id: number
 	tipo: string
-	data_vencimento: string
+	// null no demissional
+	data_vencimento: string | null
 }
 
 interface EmployeeCertificateRecord {
@@ -141,7 +142,7 @@ export async function carregarDashboard(): Promise<DashboardData> {
 
 	for (const aso of asosResponse.data) {
 		const collaborator = collaboratorById.get(aso.colaborador_id)
-		if (!collaborator) continue
+		if (!collaborator || !aso.data_vencimento) continue
 		const status = statusForDate(aso.data_vencimento)
 		if (!status) continue
 		asoCounts[status] += 1

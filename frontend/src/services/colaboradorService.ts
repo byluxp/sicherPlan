@@ -46,7 +46,8 @@ export interface FichaAso {
     id: number;
     tipo: string;
     data_emissao: string;
-    data_vencimento: string;
+    // null no demissional
+    data_vencimento: string | null;
 }
 
 export interface FichaTreinamento {

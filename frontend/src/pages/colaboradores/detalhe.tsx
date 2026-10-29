@@ -1,14 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Pencil } from 'lucide-react'
+import { Check, Pencil } from 'lucide-react'
 import AppHeader from '../../components/header/app-header'
 import Badge, { type BadgeVariant } from '../../components/ui/badge'
 import Button from '../../components/ui/button'
 import Card from '../../components/ui/card'
 import { colaboradorService, type FichaColaborador } from '../../services/colaboradorService'
 import { mensagemErroApi } from '../../services/funcaosetorService'
+import GestaoAsos, { formatDate, situacaoVencimento, type Situacao } from './asos'
 import { precisaEmitir, ROTULO_SITUACAO, treinamentosExigidos, type SituacaoTreinamento } from '../../utils/treinamentosObrigatorios'
-
-type Situacao = { label: string; variant: BadgeVariant }
 
 const VARIANTE_SITUACAO: Record<SituacaoTreinamento, BadgeVariant> = {
 	pendente: 'warning',
@@ -27,25 +26,8 @@ const APTIDAO_ALTURA: Record<string, { situacao: Situacao; detalhe: string }> = 
 	null: { situacao: { label: 'Não avaliado', variant: 'warning' }, detalhe: 'Marque a aptidão no cadastro' },
 }
 
-function formatDate(value: string | null) {
-	if (!value) return '—'
-	const [year, month, day] = value.slice(0, 10).split('-').map(Number)
-	return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, day)))
-}
-
 function formatCpf(value: string) {
 	return value.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-}
-
-// mesma regra do dashboard: "a vencer" nos próximos 30 dias
-function situacaoVencimento(value: string | null): Situacao {
-	if (!value) return { label: 'Válido', variant: 'success' }
-	const [year, month, day] = value.slice(0, 10).split('-').map(Number)
-	const now = new Date()
-	const dias = Math.floor((Date.UTC(year, month - 1, day) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86_400_000)
-	if (dias < 0) return { label: 'Vencido', variant: 'danger' }
-	if (dias <= 30) return { label: 'A vencer', variant: 'warning' }
-	return { label: 'Válido', variant: 'success' }
 }
 
 function textoValidade(value: string | null) {
@@ -63,10 +45,13 @@ function situacaoAssinatura(registros: { assinado: boolean | null }[]): Situacao
 	return registros.length > 0 && registros.every((registro) => registro.assinado) ? CONFORME : PENDENTE
 }
 
-function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
+function Secao({ titulo, acao, children }: { titulo: string; acao?: ReactNode; children: ReactNode }) {
 	return (
 		<section className="flex flex-col gap-4 rounded-card border border-border bg-white p-5">
-			<h2 className="text-[17px] font-semibold text-brand-deep">{titulo}</h2>
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<h2 className="text-[17px] font-semibold text-brand-deep">{titulo}</h2>
+				{acao}
+			</div>
 			{children}
 		</section>
 	)
@@ -86,6 +71,14 @@ export default function CollaboratorDetailPage() {
 	const colaboradorId = Number(new URLSearchParams(window.location.search).get('id'))
 	const [ficha, setFicha] = useState<FichaColaborador | null>(null)
 	const [erro, setErro] = useState('')
+	const [editandoSaude, setEditandoSaude] = useState(false)
+
+	// recarrega depois de mexer nos ASOs: o ASO atual e a aptidão para altura podem ter mudado
+	function recarregarFicha() {
+		colaboradorService.consultarFicha(colaboradorId)
+			.then(setFicha)
+			.catch((requestError) => setErro(mensagemErroApi(requestError, 'Não foi possível carregar os dados do colaborador.')))
+	}
 
 	useEffect(() => {
 		document.title = 'Detalhes do colaborador | sicherPlan'
@@ -141,13 +134,21 @@ export default function CollaboratorDetailPage() {
 								</dl>
 							</section>
 
-							<Secao titulo="Saúde ocupacional">
+							<Secao
+								titulo="Saúde ocupacional"
+								acao={
+									<Button type="button" variant="secondary" icon={editandoSaude ? <Check className="size-[18px]" /> : <Pencil className="size-[18px]" />} onClick={() => setEditandoSaude((atual) => !atual)}>
+										{editandoSaude ? 'Concluir' : 'Editar'}
+									</Button>
+								}
+							>
 								<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
 									{asoAtual
 										? <Item titulo={`ASO • ${asoAtual.tipo}`} situacao={situacaoVencimento(asoAtual.data_vencimento)} detalhe={textoValidade(asoAtual.data_vencimento)} />
 										: <Item titulo="ASO" situacao={PENDENTE} detalhe="Nenhum ASO registrado" />}
 									<Item titulo="Trabalho em altura" {...APTIDAO_ALTURA[String(ficha.colaborador.apto_trabalho_altura)]} />
 								</div>
+								{editandoSaude && <GestaoAsos colaboradorId={ficha.colaborador.id} onAlterado={recarregarFicha} />}
 							</Secao>
 
 							<Secao titulo="Treinamentos">

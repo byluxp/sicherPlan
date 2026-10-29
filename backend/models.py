@@ -1,4 +1,5 @@
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Table, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -143,8 +144,13 @@ class Aso(Base):
     id = Column(Integer, primary_key=True)
     colaborador_id = Column(Integer, ForeignKey("colaborador.id"), nullable=False)
     tipo = Column(String, nullable=False)
-    data_emissao = Column(Date, nullable=False)
-    data_vencimento = Column(Date, nullable=False)
+    data_exame = Column(Date)  # exame clínico
+    data_emissao = Column(Date, nullable=False)  # liberação do ASO
+    data_vencimento = Column(Date)  # o demissional não vence
+    # exames realizados: [{"nome": "Audiometria", "data": "2026-10-10"}]
+    exames = Column(JSONB, nullable=False, default=list, server_default="[]")
+    resultado = Column(String)  # "Apto" ou "Inapto"
+    apto_trabalho_altura = Column(Boolean)  # None = o ASO não fala de altura
     url_documento = Column(String)
     observacao = Column(String)
     criado_em = Column(DateTime, default=func.now(), server_default=func.now(), nullable=False)

@@ -7,6 +7,7 @@ O resultado sempre passa pela validação local (CPF, datas) antes de ir para a 
 
 LGPD: o documento é enviado ao Google. Use uma chave de projeto com faturamento ativo;
 no nível gratuito da API, o Google pode usar os dados enviados para melhorar seus produtos.
+O ASO tem dado de saúde (dado sensível): vale ainda mais a regra da chave com faturamento.
 """
 
 import base64
@@ -47,6 +48,44 @@ class DocumentoIdentificacaoIA(BaseModel):
     data_nascimento: Optional[str] = Field(default=None, description="Data de nascimento AAAA-MM-DD")
 
 
+PROMPT_ASO = """Você recebe um ASO (Atestado de Saúde Ocupacional) brasileiro emitido por uma clínica de \
+medicina do trabalho, conforme a NR-7. Pode ser PDF digital, digitalização ou foto.
+
+Extraia os dados deste ASO:
+- nome: nome completo do trabalhador (não do médico nem da empresa), em maiúsculas.
+- cpf: CPF do trabalhador, só os 11 dígitos. null se o ASO não trouxer.
+- tipo: o tipo de exame marcado no ASO (Admissional, Periódico, Retorno ao trabalho, \
+Mudança de risco ocupacional ou Demissional). "Mudança de função" conta como Mudança de risco ocupacional. \
+Se as opções aparecem impressas, use só a que estiver marcada (X, check, preenchida).
+- data_exame: data do exame clínico, AAAA-MM-DD.
+- data_emissao: data em que o ASO foi emitido e liberado pelo médico (perto da assinatura), AAAA-MM-DD.
+- exames: cada exame realizado (exame clínico e complementares, como audiometria, acuidade visual, \
+espirometria, hemograma, glicemia, ECG, EEG, raio-X, avaliação psicossocial), com a data de cada um \
+em AAAA-MM-DD (null se não houver data). Não inclua riscos ocupacionais nem a lista de agentes.
+- resultado: "Apto" ou "Inapto" para a função, conforme a conclusão marcada pelo médico.
+- apto_trabalho_altura: true se o ASO declara apto para trabalho em altura, false se declara inapto, \
+null se o ASO não fala de trabalho em altura.
+
+Se um campo estiver ilegível ou ausente, devolva null. Nunca invente datas ou exames que você não leu."""
+
+
+class ExameIA(BaseModel):
+    nome: str
+    data: Optional[str] = Field(default=None, description="Data do exame AAAA-MM-DD")
+
+
+class AsoIA(BaseModel):
+    documento_e_aso: bool = Field(description="false se o arquivo não é um ASO legível")
+    nome: Optional[str] = Field(default=None, description="Nome completo do trabalhador")
+    cpf: Optional[str] = Field(default=None, description="CPF do trabalhador, 11 dígitos sem pontuação")
+    tipo: Optional[Literal["Admissional", "Periódico", "Retorno ao trabalho", "Mudança de risco ocupacional", "Demissional"]] = None
+    data_exame: Optional[str] = Field(default=None, description="Data do exame clínico AAAA-MM-DD")
+    data_emissao: Optional[str] = Field(default=None, description="Data de emissão/liberação do ASO AAAA-MM-DD")
+    exames: list[ExameIA] = []
+    resultado: Optional[Literal["Apto", "Inapto"]] = None
+    apto_trabalho_altura: Optional[bool] = None
+
+
 def ia_configurada() -> bool:
     return bool(os.getenv("GEMINI_API_KEY"))
 
@@ -59,7 +98,7 @@ def _imagem_como_pdf(conteudo: bytes) -> bytes:
     return buffer.getvalue()
 
 
-def ler_identificacao_com_ia(conteudo: bytes, mime_type: str) -> DocumentoIdentificacaoIA:
+def _ler_documento(conteudo: bytes, mime_type: str, prompt: str, modelo: type[BaseModel]):
     # import local: o SDK só é carregado quando a IA está configurada
     from google import genai
 
@@ -68,16 +107,24 @@ def ler_identificacao_com_ia(conteudo: bytes, mime_type: str) -> DocumentoIdenti
     interacao = cliente.interactions.create(
         model=os.getenv("GEMINI_MODEL", MODELO_PADRAO),
         input=[
-            {"type": "text", "text": PROMPT_IDENTIFICACAO},
+            {"type": "text", "text": prompt},
             {"type": "document", "data": base64.b64encode(pdf).decode("ascii"), "mime_type": "application/pdf"},
         ],
         response_format={
             "type": "text",
             "mime_type": "application/json",
-            "schema": DocumentoIdentificacaoIA.model_json_schema(),
+            "schema": modelo.model_json_schema(),
         },
         timeout=TEMPO_LIMITE_SEGUNDOS,
     )
     if interacao.usage:
-        logger.info("Leitura de documento por IA: %s tokens", interacao.usage.total_tokens)
-    return DocumentoIdentificacaoIA.model_validate_json(interacao.output_text)
+        logger.info("Leitura de documento por IA (%s): %s tokens", modelo.__name__, interacao.usage.total_tokens)
+    return modelo.model_validate_json(interacao.output_text)
+
+
+def ler_identificacao_com_ia(conteudo: bytes, mime_type: str) -> DocumentoIdentificacaoIA:
+    return _ler_documento(conteudo, mime_type, PROMPT_IDENTIFICACAO, DocumentoIdentificacaoIA)
+
+
+def ler_aso_com_ia(conteudo: bytes, mime_type: str) -> AsoIA:
+    return _ler_documento(conteudo, mime_type, PROMPT_ASO, AsoIA)

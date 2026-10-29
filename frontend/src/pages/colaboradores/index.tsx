@@ -27,7 +27,7 @@ type FormState = {
 	apto_trabalho_altura: boolean | null
 }
 
-// marcação de aptidão para trabalho em altura; clicar de novo na opção marcada volta para "não avaliado"
+// marcação obrigatória de aptidão para trabalho em altura; pode ser trocada a qualquer momento
 const opcoesAptidaoAltura = [
 	{ valor: true, rotulo: 'Apto', ativo: 'border-brand bg-brand text-brand-on-primary' },
 	{ valor: false, rotulo: 'Inapto', ativo: 'border-status-danger-text bg-status-danger-text text-white' },
@@ -171,6 +171,10 @@ export default function CollaboratorsPage() {
 		setNotice(null)
 		if (!form.setor_id || !form.funcao_id) {
 			setError('Selecione o setor e a função do colaborador para salvar.')
+			return
+		}
+		if (form.apto_trabalho_altura === null) {
+			setError('Marque se o colaborador está apto ou inapto para trabalho em altura.')
 			return
 		}
 		setSaving(true)
@@ -326,7 +330,7 @@ export default function CollaboratorsPage() {
 								</Select>
 							</div>
 							<fieldset className="flex flex-col gap-2">
-								<legend className="mb-2 text-[13px] font-semibold text-text-primary">Trabalho em altura (NR-35)</legend>
+								<legend className="mb-2 text-[13px] font-semibold text-text-primary">Trabalho em altura (NR-35) <span aria-hidden="true" className="text-status-danger-text">*</span></legend>
 								<div className="grid grid-cols-2 gap-1.5 rounded-control border border-border bg-surface-muted p-1.5">
 									{opcoesAptidaoAltura.map((opcao) => {
 										const marcado = form.apto_trabalho_altura === opcao.valor
@@ -335,7 +339,7 @@ export default function CollaboratorsPage() {
 												key={opcao.rotulo}
 												type="button"
 												aria-pressed={marcado}
-												onClick={() => setForm((current) => ({ ...current, apto_trabalho_altura: marcado ? null : opcao.valor }))}
+												onClick={() => setForm((current) => ({ ...current, apto_trabalho_altura: opcao.valor }))}
 												className={`min-h-[38px] rounded-control border px-2 text-[13px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-brand ${marcado ? opcao.ativo : 'border-transparent bg-surface-card text-brand hover:bg-surface-success'}`}
 											>
 												{opcao.rotulo}
@@ -345,7 +349,7 @@ export default function CollaboratorsPage() {
 								</div>
 								<p className={`text-xs leading-[1.5] ${form.apto_trabalho_altura === false ? 'font-medium text-status-danger-text' : 'text-text-secondary'}`}>
 									{form.apto_trabalho_altura === null
-										? 'Não avaliado. Marque conforme o ASO do colaborador.'
+										? 'Obrigatório. Marque conforme o último ASO do colaborador.'
 										: form.apto_trabalho_altura
 											? 'Apto para trabalho em altura.'
 											: 'Inapto: o certificado de NR-35 não poderá ser emitido.'}

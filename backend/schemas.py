@@ -73,7 +73,8 @@ class ColaboradorBase(BaseModel):
         return cpf_limpo
 
 class ColaboradorCreate(ColaboradorBase):
-    pass #Herda da modelo da base
+    # obrigatório ao cadastrar e ao editar; pode mudar depois (ex.: apto no admissional, inapto no periódico)
+    apto_trabalho_altura: bool
 
 class ColaboradorResponse(ColaboradorBase):
     id: int

@@ -26,7 +26,7 @@ export interface ColaboradorCreate {
     setor_id: number;
     funcao_id: number;
     ativo: boolean;
-    apto_trabalho_altura: boolean | null;
+    apto_trabalho_altura: boolean;
 }
 
 // Dados lidos do documento de identificação pelo backend, para conferência antes de salvar

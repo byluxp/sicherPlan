@@ -1,12 +1,120 @@
-# SicherPlan
+# 🦺 SicherPlan
 
-Sistema de gestão de Saúde e Segurança do Trabalho (SST) para centralizar o controle de colaboradores, EPIs, documentos, treinamentos, vencimentos e pendências da empresa.
+Sistema de gestão de Saúde e Segurança do Trabalho (SST) que centraliza colaboradores, EPIs, exames (ASO), treinamentos, documentos e vencimentos, e usa IA para ler documentos e preencher cadastros.
 
-## Objetivo
+![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-D71F00?style=flat-square&logo=sqlalchemy&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=flat-square&logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini_API-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)
 
-O SicherPlan tem como objetivo reduzir controles manuais e facilitar o acompanhamento das obrigações de SST. A aplicação reunirá as informações em um único lugar, permitindo identificar pendências, acompanhar prazos, manter históricos e gerar documentos padronizados.
+## Por que existe
 
-## Funcionalidades previstas
+Na rotina de um técnico de segurança, o controle de EPIs, ASOs, treinamentos e vencimentos vive em planilhas soltas e no papel. Um exame vence sem ninguém perceber, um EPI com CA vencido é entregue, um certificado é emitido para quem não poderia recebê-lo. O SicherPlan nasceu dessa rotina: foi pensado por quem trabalha com SST no dia a dia.
+
+## ⭐ Destaques
+
+- **Regra que protege vidas:** a aptidão para trabalho em altura é obrigatória no cadastro, e o ASO mais recente a atualiza. **Quem está inapto não recebe o certificado de NR-35.**
+- **IA lendo documentos:** RG, CNH, ASO e o certificado de aprovação (CA) do EPI são lidos (texto do PDF, OCR e, quando falta algum campo, o Gemini) e preenchem o cadastro para conferência.
+- **Pendências por função:** cada função define os EPIs e treinamentos obrigatórios; ao mudar a função do colaborador, as exigências são recalculadas.
+- **Certificados gerados automaticamente** (NR-06, NR-18 e NR-35), com reciclagem e reemissão 30 dias antes do vencimento.
+- **LGPD:** o ASO é dado de saúde (dado sensível). Quando a IA é usada, o sistema orienta usar uma chave de projeto com faturamento ativo, que não usa o conteúdo para treinar o modelo.
+
+## ✅ O que já funciona
+
+| Módulo | Status |
+|---|---|
+| Setores e funções (com descrição da função conforme o PGR) | ✅ |
+| Colaboradores, com leitura de RG e CNH por OCR e IA | ✅ |
+| EPIs e CAs, com importação do PDF do CA | ✅ |
+| Matriz de EPIs obrigatórios por função | ✅ |
+| Entrega de EPIs, com bloqueio de EPI vencido | ✅ |
+| ASOs: histórico, edição e leitura do PDF | ✅ |
+| Treinamentos obrigatórios por função | ✅ |
+| Certificados NR-06, NR-18 e NR-35 (com bloqueio da NR-35 para inaptos) | ✅ |
+| Dashboard de vencimentos | ✅ |
+| Upload e acompanhamento de documentos | 🟡 parcial |
+
+## 🛣️ Próximos passos
+
+- [ ] Upload de documentos por colaborador, com status (anexado, pendente, vencido)
+- [ ] Login com JWT
+- [ ] Testes automatizados com Pytest nas regras principais (entrega de EPI vencido, pendências)
+- [ ] Certificado NR-12
+- [ ] Ficha de EPI e Ordem de Serviço em documento
+- [ ] **Agente de IA** (somente leitura): responder dúvidas sobre as NRs, consultar o sistema e gerar relatório de pendências. Qualquer alteração feita pela IA exigirá confirmação explícita do usuário.
+
+## 🏗️ Arquitetura
+
+```mermaid
+graph TD
+    subgraph Frontend ["💻 Frontend (React + Vite + TypeScript)"]
+        UI[Interface - Tailwind CSS]
+        Pages[Páginas: Dashboard, Colaboradores, EPIs, Setores e Funções, Entrega de EPI, Certificados]
+        Services[Serviços de API - Axios]
+    end
+
+    subgraph Backend ["⚡ Backend (FastAPI + Python)"]
+        API[Endpoints / Routers]
+        Schemas[Validação - Pydantic]
+        Leitura[Leitura de documentos - PDF, OCR e Gemini]
+        DocService[Geração de documentos .docx / .pdf]
+        ORM[ORM - SQLAlchemy + Alembic]
+    end
+
+    subgraph Infra ["🗄️ Infraestrutura"]
+        DB[(PostgreSQL - Docker)]
+        Templates[Modelos de documentos]
+    end
+
+    UI --> Pages
+    Pages --> Services
+    Services -->|HTTP / JSON| API
+    API --> Schemas
+    API --> ORM
+    API --> Leitura
+    API --> DocService
+    ORM --> DB
+    DocService --> Templates
+```
+
+```mermaid
+flowchart LR
+    Colaborador[👤 Colaborador]
+    SetorFuncao[🏢 Setor e função]
+    EPI[🥾 Controle de EPIs]
+    ASO[🏥 Exames e ASO]
+    Certificados[📜 Treinamentos e certificados]
+    Docs[📄 Emissão de documentos]
+
+    SetorFuncao -->|Atribui riscos e obrigações| Colaborador
+    EPI -->|Registra a entrega| Colaborador
+    ASO -->|Atesta a aptidão| Colaborador
+    Certificados -->|Valida a capacitação| Colaborador
+
+    Colaborador --> Docs
+    Docs -->|Gera| OrdServ[Ordem de Serviço]
+    Docs -->|Gera| FichaEPI[Ficha de EPI]
+    Docs -->|Gera| FichaReg[Ficha de registro do trabalhador]
+    Docs -->|Gera| Cert[Certificado de treinamento]
+```
+
+## 📏 Regras de negócio principais
+
+- Todo colaborador deverá possuir um setor e uma função;
+- setores e funções em uso não poderão ser excluídos;
+- EPIs vencidos não poderão ser entregues;
+- as pendências deverão ser recalculadas após alteração de função;
+- vencimentos deverão aparecer no dashboard;
+- documentos deverão ser vinculados ao colaborador correto;
+- arquivos enviados deverão ter validação de formato e tamanho;
+- o acesso aos dados deverá exigir autenticação.
+
+## 🔍 Funcionalidades em detalhe
 
 ### Colaboradores
 
@@ -99,115 +207,15 @@ O agente de IA será desenvolvido em uma etapa posterior e poderá:
 
 Alterações ou criação de registros por meio da IA deverão exigir confirmação explícita do usuário.
 
-## Escopo do MVP
-
-A primeira versão do sistema deverá priorizar:
-
-1. Cadastro de setores e funções;
-2. Cadastro de colaboradores;
-3. Cadastro de EPIs e CAs;
-4. Matriz de EPIs obrigatórios por função;
-5. Registro de entregas de EPIs;
-6. Cadastro e controle de ASOs;
-7. Upload e acompanhamento de documentos;
-8. Dashboard de vencimentos e pendências;
-9. Autenticação básica de usuários.
-
-A geração avançada de documentos e o agente de IA serão implementados após a estabilização das funcionalidades principais.
-
-## Tecnologias previstas
-
-### Frontend
-
-- React;
-- TypeScript;
-- Vite;
-- React Router;
-- React Hook Form;
-- Zod;
-- Material UI ou biblioteca equivalente;
-- ESLint e Prettier.
-
-### Backend
-
-- Python;
-- FastAPI;
-- SQLAlchemy;
-- Alembic;
-- Pydantic;
-- JWT para autenticação;
-- Pytest para testes automatizados.
-
-### Banco de dados e arquivos
-
-- PostgreSQL;
-- MinIO ou outro armazenamento compatível com S3 para PDFs e documentos;
-- Docker Compose para o ambiente de desenvolvimento.
-
-## Estrutura do projeto
+## 📁 Estrutura do projeto
 
 ```text
 sicherPlan/
 ├── frontend/       # Interface e navegação do sistema
 ├── backend/        # API, regras de negócio e acesso ao banco
 ├── docs/           # Planejamento, requisitos e documentação
-└── README.md       # Documentação inicial do projeto
+└── README.md
 ```
-
-## Modelo inicial de dados
-
-As principais entidades previstas são:
-
-- Usuário;
-- Setor;
-- Função;
-- Colaborador;
-- EPI e CA;
-- EPI obrigatório por função;
-- Entrega de EPI;
-- ASO;
-- Documento;
-- Certificado e treinamento;
-- Ordem de Serviço;
-- Ficha de EPI;
-- Histórico de função.
-
-## Regras de negócio principais
-
-- Todo colaborador deverá possuir um setor e uma função;
-- setores e funções em uso não poderão ser excluídos;
-- EPIs vencidos não poderão ser entregues;
-- as pendências deverão ser recalculadas após alteração de função;
-- vencimentos deverão aparecer no dashboard;
-- documentos deverão ser vinculados ao colaborador correto;
-- arquivos enviados deverão ter validação de formato e tamanho;
-- o acesso aos dados deverá exigir autenticação.
-
-## Fases de desenvolvimento
-
-1. Preparação do ambiente e estrutura do projeto;
-2. Modelagem do banco de dados e migrations;
-3. Autenticação e cadastros básicos;
-4. Cadastro de EPIs e controle de CAs;
-5. Matriz de EPIs obrigatórios e entregas;
-6. Documentos, ASOs e certificados;
-7. Dashboard e alertas de vencimento;
-8. Geração de documentos;
-9. Agente de IA;
-10. Testes, revisão e preparação para produção.
-
-## Critérios de conclusão do MVP
-
-O MVP será considerado funcional quando for possível:
-
-- cadastrar setores, funções, colaboradores e EPIs;
-- definir EPIs obrigatórios por função;
-- registrar entregas e identificar pendências;
-- cadastrar ASOs e documentos;
-- visualizar vencimentos e filtrar informações por setor;
-- executar os principais fluxos pela interface;
-- executar testes básicos do backend;
-- iniciar o projeto seguindo as instruções da documentação.
 
 ## Como inicializar o ambiente local
 
@@ -315,4 +323,4 @@ O comando `docker volume rm` é destrutivo: apaga permanentemente os dados desse
 
 ## Status do projeto
 
-O SicherPlan está em fase inicial de planejamento e desenvolvimento. Este README servirá como documento de referência para acompanhar a implementação e a evolução do sistema.
+MVP em cerca de 75%, em desenvolvimento ativo. Desenvolvido por [Lucila Vitória](https://github.com/byluxp), com o Claude Code como par de programação.

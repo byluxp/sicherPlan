@@ -12,6 +12,10 @@ Sistema de gestão de Saúde e Segurança do Trabalho (SST) que centraliza colab
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini_API-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)
 
+![Demonstração do SicherPlan: painel, colaboradores, detalhe com inapto para altura e bloqueio da NR-35](docs/img/sicherplan-demo.gif)
+
+*Demonstração com dados fictícios (banco de teste, nenhuma pessoa real).*
+
 ## Por que existe
 
 Na rotina de um técnico de segurança, o controle de EPIs, ASOs, treinamentos e vencimentos vive em planilhas soltas e no papel. Um exame vence sem ninguém perceber, um EPI com CA vencido é entregue, um certificado é emitido para quem não poderia recebê-lo. O SicherPlan nasceu dessa rotina: foi pensado por quem trabalha com SST no dia a dia.
